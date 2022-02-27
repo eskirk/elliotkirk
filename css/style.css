@@ -5,6 +5,11 @@
   color: #bd97dd;
 }
 
+canvas {
+  display: flex;
+  margin: auto;
+}
+
 .row-break {
   margin: 15px;
 }
