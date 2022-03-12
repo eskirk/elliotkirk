@@ -32,7 +32,7 @@ let mouseConstraint = Matter.MouseConstraint.create(engine, {
 render.mouse = mouse;
 
 let stack = Matter.Composites.stack(pageWidth / 2, 0, 8, 4, 0, 0, function(x, y) {
-  return Matter.Bodies.circle(x, y, Math.random() * 50 + 25,
+  return Matter.Bodies.circle(x, y, Math.random() * 50 + 20,
     {
       plugin: {
         wrap: {
@@ -55,7 +55,7 @@ Matter.Runner.run(runner, engine);
 Matter.Events.on(runner, "beforeUpdate", function(e) {
 	// random force to the left (from right edge center, affects torque?)
 	let from = Matter.Vector.create(render.options.width, render.options.height/2)
-	let force = Matter.Vector.create(Matter.Common.random(0.01, 0), 0)
+	let force = Matter.Vector.create(Matter.Common.random(0.005, 0), 0)
 
 	// all bodies affected by the wind
 	stack.bodies.forEach(function(body) {
