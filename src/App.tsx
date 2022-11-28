@@ -1,4 +1,6 @@
 import React from 'react';
+// @ts-ignore
+import { Balls } from './components/Balls.tsx';
 import './style.scss'
 
 export const App = () => {
@@ -19,7 +21,7 @@ export const App = () => {
 
       <div className="row align-items-center">
         <div className="col-sm ml-md-auto">
-          <h4>full stack & solutions engineer</h4>
+          <h4>full stack engineer @ <a className="job-link" href="https://grafana.com/">grafana labs</a></h4>
         </div>
       </div>
       <div className="row align-items-center">
@@ -27,6 +29,7 @@ export const App = () => {
           <h4>more to come</h4>
         </div>
       </div>
+      <Balls/>
     </div>
   );
 };
