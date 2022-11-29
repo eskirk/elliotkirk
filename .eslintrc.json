@@ -1,0 +1,16 @@
+{
+  "env": {
+    "browser": true
+  },
+  "globals": {
+    "__dirname": true,
+    "require": true,
+    "module": true
+  },
+  "plugins": ["react"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:react/recommended"
+  ],
+  "parser": "babel-eslint"
+}

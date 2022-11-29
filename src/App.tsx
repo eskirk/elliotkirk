@@ -1,6 +1,5 @@
 import React from 'react';
-// @ts-ignore
-import { Balls } from './components/Balls.tsx';
+import { Balls } from './components/Balls';
 import './style.scss'
 
 export const App = () => {

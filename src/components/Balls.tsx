@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as Matter from 'matter-js';
+import _ from 'lodash';
 
 export const Balls = () => {
   const scene = useRef<HTMLDivElement>(null);
@@ -33,13 +34,13 @@ export const Balls = () => {
       mouse: mouse,
       constraint: {
         render: {
-          visible: true,
+          visible: false,
         },
       },
     });
     render.mouse = mouse;
 
-
+    const colors = ['RebeccaPurple', 'HotPink', 'PaleVioletRed', 'Indigo', 'LightSlateGray'];
     let stack = Matter.Composites.stack(
       pageWidth / 2,
       0,
@@ -48,7 +49,11 @@ export const Balls = () => {
       0,
       0,
       function (x: number, y: number) {
-        return Matter.Bodies.circle(x, y, Math.random() * 50 + 20);
+        return Matter.Bodies.circle(x, y, Math.random() * 50 + 20, {
+          render: {
+            fillStyle: _.sample(colors)
+          }
+        });
       }
     );
 
@@ -58,7 +63,11 @@ export const Balls = () => {
     Matter.Events.on(mouseConstraint, 'mousedown', (event: any) => {
       mouseDown = true;
       var position = event.mouse.position;
-      var circle = Matter.Bodies.circle(position.x, position.y, Math.random() * 50 + 20);
+      var circle = Matter.Bodies.circle(position.x, position.y, Math.random() * 50 + 20, {
+          render: {
+            fillStyle: _.sample(colors)
+          }
+        });
       Matter.World.add(engine.current.world, circle);
     });
 
@@ -71,7 +80,11 @@ export const Balls = () => {
     Matter.Events.on(mouseConstraint, 'mousemove', (event: any) => {
       if (mouseDown) {
         var position = event.mouse.position;
-        var circle = Matter.Bodies.circle(position.x, position.y, Math.random() * 50 + 20);
+        var circle = Matter.Bodies.circle(position.x, position.y, Math.random() * 50 + 20, {
+          render: {
+            fillStyle: _.sample(colors)
+          }
+        });
         Matter.World.add(engine.current.world, circle);
       }
     });
