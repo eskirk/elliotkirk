@@ -12,5 +12,5 @@
     "eslint:recommended",
     "plugin:react/recommended"
   ],
-  "parser": "babel-eslint"
+  "parser": "@typescript-eslint/parser"
 }
