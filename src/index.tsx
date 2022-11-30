@@ -7,7 +7,7 @@ import './style.scss'
 initializeFaro({
   url: 'https://faro-collector-prod-us-central-0.grafana.net/collect/8ebb309a2a2a14a8f3d81a0d9e9d3a9f',
   app: {
-    name: 'My first app',
+    name: 'eskirk.github.io',
     version: '1.0.0',
     environment: 'production'
   },
