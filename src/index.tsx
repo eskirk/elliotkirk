@@ -4,15 +4,14 @@ import { initializeFaro } from '@grafana/faro-web-sdk';
 import { App } from './App';
 import './style.scss'
 
-// initializeFaro({
-//   // Mandatory, the URL of the Grafana Cloud collector with embedded application key.
-//   // Copy from the configuration page of your application in Grafana.
-//   url: "http://faro-collector-us-central-0.grafana.net/collect/{app-key}",
-//   app: {
-//     name: "elliotkirk",
-//     version: "1.0.0",
-//   },
-// });
+initializeFaro({
+  url: 'https://faro-collector-prod-us-central-0.grafana.net/collect/8ebb309a2a2a14a8f3d81a0d9e9d3a9f',
+  app: {
+    name: 'My first app',
+    version: '1.0.0',
+    environment: 'production'
+  },
+});
 
 // Create a root.
 const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);

@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from "react"
-import * as Matter from 'matter-js';
-import _ from 'lodash';
+import React, { useEffect, useRef } from "react";
+import * as Matter from "matter-js";
+import _ from "lodash";
 
 export const Slackline = () => {
   const scene = useRef<HTMLDivElement>(null);
@@ -15,56 +15,95 @@ export const Slackline = () => {
       element: document.body,
       engine: engine.current,
       options: {
-        background: 'transparent',
+        background: "transparent",
         width: pageWidth,
-        height: 800,
+        height: 1200,
         showAngleIndicator: false,
         wireframes: false,
       },
     });
 
     const anchors = [
-      Matter.Bodies.rectangle(0, pageHeight - 350, 80, 300, {
+      Matter.Bodies.rectangle(25, pageHeight / 2, 80, 300, {
         isStatic: true,
+        collisionFilter: {
+          category: 0x0002,
+        },
         render: {
-          fillStyle: 'gray'
-        }
+          fillStyle: "gray",
+        },
       }),
-      Matter.Bodies.rectangle(pageWidth, pageHeight - 350, 80, 300, {
+      Matter.Bodies.rectangle(pageWidth - 25, pageHeight / 2, 80, 300, {
         isStatic: true,
+        collisionFilter: {
+          category: 0x0002,
+        },
         render: {
-          fillStyle: 'gray'
-        }
+          fillStyle: "gray",
+        },
       }),
     ];
 
-    const colors = ['RebeccaPurple', 'HotPink', 'PaleVioletRed', 'Indigo', 'LightSlateGray'];
+    const colors = [
+      "RebeccaPurple",
+      "HotPink",
+      "PaleVioletRed",
+      "Indigo",
+      "LightSlateGray",
+    ];
     const slacker = Matter.Bodies.circle(pageWidth / 2, 0, 45, {
       density: 0.0045,
+      collisionFilter: {
+        category: 0x0001,
+      },
       render: {
-        fillStyle: _.sample(colors)
+        fillStyle: _.sample(colors),
+      },
+    });
+
+    const webbing = Matter.Composites.stack(
+      100,
+      1000,
+      100,
+      1,
+      10,
+      10,
+      function (x: number, y: number) {
+        return Matter.Bodies.rectangle(x - 20, y, 20, 10, {
+          collisionFilter: {
+            mask: 0x0001,
+          },
+          render: { fillStyle: _.sample(colors) },
+          chamfer: { radius: 5 },
+        });
       }
-    });
+    );
 
-    const webbing = Matter.Composites.stack(100, 200, 35, 1, 20, 10, function(x: number, y: number) {
-      return Matter.Bodies.rectangle(x - 25, y, 50, 20, { render: { fillStyle: _.sample(colors)}, chamfer: { radius: 5 } });
+    Matter.Composites.chain(webbing, 0.2, 0, -0.2, 0, {
+      length: 0,
+      stiffness: 1,
+      damping: 1
     });
-
-    Matter.Composites.chain(webbing, 0.3, 0, -0.3, 0, { length: 0 });
-    Matter.Composite.add(webbing, Matter.Constraint.create({
-      pointA:  anchors[0].position,
-      bodyB: webbing.bodies[0],
-      pointB: { x: -25, y: 0 },
-      stiffness: .25,
-      length: 1
-    }));
-    Matter.Composite.add(webbing, Matter.Constraint.create({
-      pointA: anchors[1].position,
-      bodyB: _.last(webbing.bodies),
-      pointB: { x: 25, y: 0 },
-      stiffness: .25,
-      length: 1
-    }));
+    Matter.Composite.add(
+      webbing,
+      Matter.Constraint.create({
+        pointA: { x: anchors[0].position.x + 30, y: anchors[0].position.y },
+        bodyB: webbing.bodies[0],
+        damping: 1.5,
+        stiffness: .1,
+        length: 5
+      })
+    );
+    Matter.Composite.add(
+      webbing,
+      Matter.Constraint.create({
+        pointA: { x: anchors[1].position.x - 30, y: anchors[1].position.y },
+        bodyB: _.last(webbing.bodies),
+        damping: 1.5,
+        stiffness: .1,
+        length: 5
+      })
+    );
 
     let mouse = Matter.Mouse.create(render.canvas);
     let mouseConstraint = Matter.MouseConstraint.create(engine.current, {
@@ -77,38 +116,46 @@ export const Slackline = () => {
     });
     render.mouse = mouse;
 
-    // let mouseDown = false;
-    // create balls on click
-    Matter.Events.on(mouseConstraint, 'mousedown', () => {
-      Matter.Body.applyForce( slacker, {x: slacker.position.x, y: slacker.position.y}, {x: 0, y: 1});
+    const keyHandlers: Record<string, Function> = {
+      Space: () => {
+        Matter.Body.applyForce(
+          slacker,
+          {
+            x: slacker.position.x,
+            y: slacker.position.y,
+          },
+          { x: 0, y: 0.1 }
+        );
+      },
+    };
+
+    const keysDown = new Set<string>();
+    document.addEventListener("keydown", (event) => {
+      console.log(event.code);
+
+      keysDown.add(event.code);
+    });
+    document.addEventListener("keyup", (event) => {
+      keysDown.delete(event.code);
     });
 
-    Matter.Events.on(mouseConstraint, 'mouseup', () => {
-      Matter.Body.applyForce( slacker, {x: slacker.position.x, y: slacker.position.y}, {x: 0, y: -1});
+    Matter.Events.on(engine.current, "beforeUpdate", () => {
+      [...keysDown].forEach((k: string) => {
+        console.log(keyHandlers[k]);
+
+        keyHandlers[k]?.();
+      });
     });
 
-    // // stop creating balls when mouse up
-    // Matter.Events.on(mouseConstraint, 'mouseup', () => {
-    //   mouseDown = false;
-    // });
-
-    // // create balls continuously when mouse is down
-    // Matter.Events.on(mouseConstraint, 'mousemove', (event: any) => {
-    //   if (mouseDown) {
-    //     var position = event.mouse.position;
-    //     var circle = Matter.Bodies.circle(position.x, position.y, Math.random() * 50 + 20, {
-    //       render: {
-    //         fillStyle: _.sample(colors)
-    //       }
-    //     });
-    //     Matter.World.add(engine.current.world, circle);
-    //   }
-    // });
-
-    Matter.World.add(engine.current.world, [...anchors, webbing, slacker, mouseConstraint]);
+    Matter.World.add(engine.current.world, [
+      ...anchors,
+      webbing,
+      slacker,
+      mouseConstraint,
+    ]);
     Matter.Render.run(render);
     Matter.Runner.run(runner, engine.current);
   });
 
-  return <div ref={scene} style={{ width: '100%', height: '100%' }} />;
-}
+  return <div ref={scene} style={{ width: "100%", height: "100%" }} />;
+};
