@@ -45,11 +45,11 @@ module.exports = {
   plugins: [
     new HtmlWebpackPlugin({
       template: path.join(__dirname, 'src', 'index.html'),
+      favicon: 'favicon.ico',
     }),
   ],
   output: {
-    path: path.resolve(__dirname, './public'),
-    filename: 'bundle.js',
+    path: path.resolve(__dirname, './public/'),
   },
   devServer: {
     static: path.resolve(__dirname, './public'),

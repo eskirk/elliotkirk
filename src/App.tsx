@@ -1,5 +1,5 @@
 import React from "react";
-import { Slackline } from "./components/Slackline";
+import { Balls } from "./components/Balls";
 import "./style.scss";
 
 export const App = () => {
@@ -42,7 +42,7 @@ export const App = () => {
           <h4>more to come</h4>
         </div>
       </div>
-      <Slackline />
+      <Balls />
     </div>
   );
 };
