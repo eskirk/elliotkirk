@@ -1,0 +1,29 @@
+.top-content {
+  margin-top: 40px;
+
+  .name {
+    .git-link {
+      color: rgb(189, 151, 221);
+    }
+  }
+
+  .job-link {
+    text-decoration: none;
+    color: RGB(220, 95, 65);
+  }
+}
+
+canvas {
+  display: flex;
+  margin: auto;
+}
+
+.row-break {
+  margin: 15px;
+}
+
+html, body {
+  height: 100%;
+  padding: 0;
+  margin: 0;
+}
