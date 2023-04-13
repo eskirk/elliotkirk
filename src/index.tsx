@@ -6,7 +6,7 @@ import { App } from './App';
 import './style.scss'
 
 initializeFaro({
-  url: 'https://faro-collector-ops-us-east-0.grafana-ops.net/collect/53a38142e55b4beec237143a2140ca51',
+  url: 'https://faro-collector-prod-us-central-0.grafana.net/collect/ac63b4f7c1d69de8dc66b6969477d399',
   app: {
     name: 'eskirk.github.io',
     version: '1.0.0',
