@@ -16,6 +16,8 @@ jobs:
           passphrase: ${{secrets.SSH_PASSPHRASE}}
 
           script: |
+            export NVM_DIR=~/.nvm
+            source ~/.nvm/nvm.sh
             cd elliotkirk
             nvm use 19.0.1
             git pull
