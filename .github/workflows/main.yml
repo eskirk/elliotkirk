@@ -3,15 +3,20 @@ on:
   push:
     branches: [ main ]
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
-    name: Build and Test
+    name: Build and Deploy
     steps:
-    - uses: actions/checkout@v2
-      name: Check out repository
-    - uses: mskelton/setup-yarn@v1
+    - name: Deploy elliotkirk.com
+      uses: appleboy/ssh-action@v1.0.3
       with:
-       node-version: '19.0.1'
-    - run: |
-        yarn && yarn build
-      name: Build and Test
+        host: ${{secrets.SSH_HOST}}
+        key: ${{secrets.SSH_KEY}}
+        username: ${{secrets.SSH_USERNAME}}
+        passphrase: ${{secrets.SSH_PASSPHRASE}}
+    
+        script: |
+          cd elliotkirk
+          git pull
+          yarn && yarn build
+          echo "Deployed elliotkirk.com"
