@@ -21,8 +21,11 @@
   "dependencies": {
     "@grafana/faro-web-sdk": "^1.0.0-beta3",
     "@grafana/faro-web-tracing": "^1.0.2",
+    "path": "^0.12.7",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "sass": "^1.70.0",
+    "typescript": "^5.3.3"
   },
   "devDependencies": {
     "@babel/core": "^7.20.5",
