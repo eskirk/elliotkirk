@@ -6,16 +6,15 @@ import { App } from './App';
 import './style.scss'
 
 initializeFaro({
-  url: 'https://faro-collector-prod-us-central-0.grafana.net/collect/ac63b4f7c1d69de8dc66b6969477d399',
+  url: 'https://faro-collector-prod-us-west-0.grafana.net/collect/7b743fc448d6be8546b6758de7e71ca2',
   app: {
-    name: 'eskirk.github.io',
+    name: 'elliotkirk',
     version: '1.0.0',
     environment: 'production'
   },
+
   instrumentations: [
-    // Mandatory, overwriting the instrumentations array would cause the default instrumentations to be omitted
     ...getWebInstrumentations(),
-    // Mandatory, initialization of the tracing package
     new TracingInstrumentation(),
   ],
 });
