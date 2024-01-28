@@ -17,6 +17,7 @@ jobs:
 
           script: |
             cd elliotkirk
+            nvm use 19.0.1
             git pull
             yarn && yarn build
             echo "Deployed elliotkirk"
