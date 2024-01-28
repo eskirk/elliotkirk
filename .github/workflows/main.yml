@@ -1,0 +1,17 @@
+name: Deploy elliotkirk.com
+on:
+  push:
+    branches: [ main ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build and Test
+    steps:
+    - uses: actions/checkout@v2
+      name: Check out repository
+    - uses: mskelton/setup-yarn@v1
+      with:
+       node-version: '19.0.1'
+    - run: |
+        yarn && yarn build
+      name: Build and Test
