@@ -1,12 +1,11 @@
-import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { getWebInstrumentations, initializeFaro } from '@grafana/faro-web-sdk';
-import { TracingInstrumentation } from '@grafana/faro-web-tracing';
 import { App } from './App';
 import './style.scss'
+import { FetchInstrumentation } from '@grafana/faro-instrumentation-fetch';
 
 initializeFaro({
-  url: 'https://faro-collector-prod-us-west-0.grafana.net/collect/7b743fc448d6be8546b6758de7e71ca2',
+  url: 'https://faro-collector-prod-us-central-0.grafana.net/collect/4b52c3dc56ceebc30064a60bd8da6ccc',
   app: {
     name: 'elliotkirk',
     version: '1.0.0',
@@ -15,7 +14,7 @@ initializeFaro({
 
   instrumentations: [
     ...getWebInstrumentations(),
-    new TracingInstrumentation(),
+    new FetchInstrumentation(),
   ],
 });
 
