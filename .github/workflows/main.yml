@@ -14,9 +14,10 @@ jobs:
         key: ${{secrets.SSH_KEY}}
         username: ${{secrets.SSH_USERNAME}}
         passphrase: ${{secrets.SSH_PASSPHRASE}}
-    
+
         script: |
           cd elliotkirk
+          nvm use 19.0.1
           git pull
           yarn && yarn build
           echo "Deployed elliotkirk.com"
