@@ -5,11 +5,11 @@ import './style.scss'
 import { FetchInstrumentation } from '@grafana/faro-instrumentation-fetch';
 
 initializeFaro({
-  url: 'https://faro-collector-prod-us-central-0.grafana.net/collect/4b52c3dc56ceebc30064a60bd8da6ccc',
+  url: 'https://faro-collector-prod-us-central-0.grafana.net/collect/0d86c69dbcfccb6b5d5761e70d6abd23',
   app: {
-    name: 'elliotkirk',
+    name: 'elliotkirkdev',
     version: '1.0.0',
-    environment: 'production'
+    environment: 'dev'
   },
 
   instrumentations: [
