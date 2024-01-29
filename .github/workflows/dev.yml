@@ -1,0 +1,25 @@
+name: Deploy dev
+on:
+  push:
+    branches: [dev]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy elliotkirkdev
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{secrets.SSH_HOST}}
+          key: ${{secrets.SSH_KEY}}
+          username: ${{secrets.SSH_USERNAME}}
+          passphrase: ${{secrets.SSH_PASSPHRASE}}
+
+          script: |
+            export NVM_DIR=~/.nvm
+            source ~/.nvm/nvm.sh
+            cd elliotkirkdev
+            nvm use 19.0.1
+            git pull
+            yarn && yarn build
+            echo "Deployed elliotkirkdev"
