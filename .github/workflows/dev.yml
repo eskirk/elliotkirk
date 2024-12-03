@@ -20,7 +20,7 @@ jobs:
             source ~/.nvm/nvm.sh
             cd elliotkirkdev
             nvm use 19.0.1
-            git checkout dev
+            git checkout -f dev
             git pull -f origin dev
             yarn && yarn build
             echo "Deployed elliotkirkdev"
