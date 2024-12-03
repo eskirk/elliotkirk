@@ -21,6 +21,6 @@ jobs:
             cd elliotkirkdev
             nvm use 19.0.1
             git checkout dev
-            git pull origin dev
+            git pull -f origin dev
             yarn && yarn build
             echo "Deployed elliotkirkdev"
