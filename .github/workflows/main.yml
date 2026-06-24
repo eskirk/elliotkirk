@@ -22,6 +22,9 @@ jobs:
             nvm install 24
             nvm use 24
             corepack enable
-            git pull -f origin main
-            yarn && yarn build
+            set -e
+            GIT_SSH_COMMAND="ssh -i /home/steve/.ssh/elliotkirk_deploy -o IdentitiesOnly=yes" git fetch origin main
+            git reset --hard FETCH_HEAD
+            yarn
+            yarn build
             echo "Deployed elliotkirk"
