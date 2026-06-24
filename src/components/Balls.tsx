@@ -65,10 +65,10 @@ export const Balls = () => {
       mouseDown = true;
       var position = event.mouse.position;
       var circle = Matter.Bodies.circle(position.x, position.y, Math.random() * 50 + 20, {
-          render: {
-            fillStyle: _.sample(colors)
-          }
-        });
+        render: {
+          fillStyle: _.sample(colors)
+        }
+      });
       Matter.World.add(engine.current.world, circle);
       faro.api.pushEvent('ball_created', { x: position.x, y: position.y });
     });
@@ -91,9 +91,7 @@ export const Balls = () => {
       }
     });
 
-    Matter.Events.on(document, 'keydown', (event: any) => {
-      console.log('Key pressed:', event.key);
-
+    window.addEventListener('keydown', (event) => {
       if (event.key === 'c') {
         Matter.World.clear(engine.current.world, false);
         faro.api.pushEvent('world_cleared');
@@ -101,7 +99,12 @@ export const Balls = () => {
 
       if (event.key === 'e') {
         engine.current.world.gravity.y = 0;
+        engine.current.gravity.y = 0;
         faro.api.pushError(new Error('Gravity set to 0'));
+      }
+
+      if (event.key === 's') {
+        faro.api.setSession({ id: 'custom-session-id-' + Math.random() * 1000 });
       }
     });
 
