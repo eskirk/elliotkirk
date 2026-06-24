@@ -14,14 +14,17 @@
   },
   "author": "eskirk",
   "license": "ISC",
+  "engines": {
+    "node": ">=24"
+  },
   "bugs": {
     "url": "https://github.com/eskirk/elliotkirk.com/issues"
   },
   "homepage": "https://github.com/eskirk/elliotkirk.com#readme",
   "dependencies": {
-    "@grafana/faro-instrumentation-fetch": "^1.3.6",
-    "@grafana/faro-web-sdk": "^1.0.0-beta3",
-    "@grafana/faro-web-tracing": "^1.0.2",
+    "@grafana/faro-core": "file:./faro-vendor/grafana-faro-core-2.7.1.tgz",
+    "@grafana/faro-web-sdk": "file:./faro-vendor/grafana-faro-web-sdk-2.7.1.tgz",
+    "@grafana/faro-web-tracing": "file:./faro-vendor/grafana-faro-web-tracing-2.7.1.tgz",
     "path": "^0.12.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

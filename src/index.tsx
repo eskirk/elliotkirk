@@ -2,19 +2,26 @@ import ReactDOM from 'react-dom/client';
 import { getWebInstrumentations, initializeFaro } from '@grafana/faro-web-sdk';
 import { App } from './App';
 import './style.scss'
-import { FetchInstrumentation } from '@grafana/faro-instrumentation-fetch';
+import { TracingInstrumentation } from '@grafana/faro-web-tracing';
 
 initializeFaro({
-  url: 'https://faro-collector-prod-us-central-0.grafana.net/collect/4b52c3dc56ceebc30064a60bd8da6ccc',
+  url: 'https://faro-collector-dev-us-central-0.grafana-dev.net/collect/2cc4b89fb2f942929562684139620993',
   app: {
     name: 'elliotkirk',
     version: '1.0.0',
     environment: 'production'
   },
 
+  // Opt into remote configuration (remote session sampling rate). The config
+  // endpoint is derived from the collector URL (/collect/{key} -> /config/{key}).
+  remoteConfig: {},
+
   instrumentations: [
+    // Mandatory, omits default instrumentations otherwise.
     ...getWebInstrumentations(),
-    new FetchInstrumentation(),
+
+    // Tracing package for end-to-end visibility on HTTP requests.
+    new TracingInstrumentation(),
   ],
 });
 

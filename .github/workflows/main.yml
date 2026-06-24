@@ -19,7 +19,9 @@ jobs:
             export NVM_DIR=~/.nvm
             source ~/.nvm/nvm.sh
             cd elliotkirk
-            nvm use 19.0.1
+            nvm install 24
+            nvm use 24
+            corepack enable
             git pull -f origin main
             yarn && yarn build
             echo "Deployed elliotkirk"
