@@ -23,6 +23,7 @@
   "homepage": "https://github.com/eskirk/elliotkirk.com#readme",
   "dependencies": {
     "@grafana/faro-core": "file:./faro-vendor/grafana-faro-core-2.7.1.tgz",
+    "@grafana/faro-react": "^2.7.1",
     "@grafana/faro-web-sdk": "file:./faro-vendor/grafana-faro-web-sdk-2.7.1.tgz",
     "@grafana/faro-web-tracing": "file:./faro-vendor/grafana-faro-web-tracing-2.7.1.tgz",
     "path": "^0.12.7",

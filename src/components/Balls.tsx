@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { faro } from '@grafana/faro-web-sdk';
 import * as Matter from 'matter-js';
 import _ from 'lodash';
 
@@ -69,6 +70,7 @@ export const Balls = () => {
           }
         });
       Matter.World.add(engine.current.world, circle);
+      faro.api.pushEvent('ball_created', { x: position.x, y: position.y });
     });
 
     // stop creating balls when mouse up
@@ -86,6 +88,20 @@ export const Balls = () => {
           }
         });
         Matter.World.add(engine.current.world, circle);
+      }
+    });
+
+    Matter.Events.on(document, 'keydown', (event: any) => {
+      console.log('Key pressed:', event.key);
+
+      if (event.key === 'c') {
+        Matter.World.clear(engine.current.world, false);
+        faro.api.pushEvent('world_cleared');
+      }
+
+      if (event.key === 'e') {
+        engine.current.world.gravity.y = 0;
+        faro.api.pushError(new Error('Gravity set to 0'));
       }
     });
 

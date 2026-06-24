@@ -1,5 +1,6 @@
 import ReactDOM from 'react-dom/client';
 import { getWebInstrumentations, initializeFaro } from '@grafana/faro-web-sdk';
+import { ReactIntegration } from '@grafana/faro-react';
 import { App } from './App';
 import './style.scss'
 import { TracingInstrumentation } from '@grafana/faro-web-tracing';
@@ -18,11 +19,14 @@ initializeFaro({
 
   instrumentations: [
     // Mandatory, omits default instrumentations otherwise.
-    ...getWebInstrumentations(),
-
+    ...getWebInstrumentations({ captureConsole: true }),
+    new ReactIntegration(),
     // Tracing package for end-to-end visibility on HTTP requests.
     new TracingInstrumentation(),
   ],
+  experimental: {
+    trackNavigation: true,
+  },
 });
 
 // Create a root.
