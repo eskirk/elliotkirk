@@ -1,3 +1,11 @@
 .vscode
 .DS_Store
 node_modules
+
+# Build output (webpack emits here; regenerated on every build/deploy).
+# The favicon source lives at the repo root (./favicon.ico) and is copied
+# into public/ by HtmlWebpackPlugin, so the whole directory is generated.
+public
+dist
+
+*.log
