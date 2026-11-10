@@ -2,6 +2,7 @@
   "name": "elliotkirk",
   "version": "1.0.0",
   "description": "Personal website",
+  "private": true,
   "scripts": {
     "build": "NODE_ENV=production webpack",
     "start": "webpack-dev-server --mode development --open --hot",
@@ -57,6 +58,6 @@
     "typescript": "^5.3.3",
     "webpack": "^5.75.0",
     "webpack-cli": "^5.0.0",
-    "webpack-dev-server": "^4.11.1"
+    "webpack-dev-server": "^5.2.6"
   }
 }
