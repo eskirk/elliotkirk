@@ -5,12 +5,21 @@
   "globals": {
     "__dirname": true,
     "require": true,
-    "module": true
+    "module": true,
+    "process": "readonly"
   },
   "plugins": ["react"],
   "extends": [
     "eslint:recommended",
     "plugin:react/recommended"
   ],
-  "parser": "@typescript-eslint/parser"
+  "parser": "@typescript-eslint/parser",
+  "settings": {
+    "react": {
+      "version": "18.0"
+    }
+  },
+  "ignorePatterns": [
+    "**/*.d.ts"
+  ]
 }
