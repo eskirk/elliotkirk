@@ -14,7 +14,7 @@ export const App = () => {
               target="_blank"
               rel="noreferrer"
             >
-              <i className="git-link fa fa-github fa-sm"></i>
+              <i className="git-link fa-brands fa-github fa-sm"></i>
             </a>
           </h1>
         </div>
