@@ -1,6 +1,7 @@
 .vscode
 .DS_Store
 node_modules
+package-lock.json
 
 # Build output (webpack emits here; regenerated on every build/deploy).
 # The favicon source lives at the repo root (./favicon.ico) and is copied
