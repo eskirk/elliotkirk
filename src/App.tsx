@@ -129,7 +129,9 @@ export const App = () => {
           </div>
         </>
       )}
-      <Balls />
+      {/* The ball scene is home-only: projects is a clean white page, and
+          physics/tilt/rain fully stop (component unmounts) while it's open. */}
+      {!onProjects && <Balls />}
       {!onProjects && (
         <div className="shortcuts">
           <span><kbd>a</kbd> add a ball</span>
