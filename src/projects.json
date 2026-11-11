@@ -1,0 +1,62 @@
+[
+  {
+    "fullName": "grafana/faro-web-sdk",
+    "name": "faro-web-sdk",
+    "url": "https://github.com/grafana/faro-web-sdk",
+    "desc": "The Grafana Faro Web SDK, part of the Grafana Faro project, is a highly configurable web SDK for real user monitoring (RUM) that instruments browser frontend applications to capture observability signals. Frontend telemetry can then be correlated with backend and infrastructure data for full-stack observability.",
+    "lang": "TypeScript",
+    "stars": 1152,
+    "fork": false,
+    "pushedAt": "2026-11-11T19:01:46Z"
+  },
+  {
+    "fullName": "grafana/faro-javascript-bundler-plugins",
+    "name": "faro-javascript-bundler-plugins",
+    "url": "https://github.com/grafana/faro-javascript-bundler-plugins",
+    "desc": "A collection of plugins for various JavaScript bundlers. Used in conjunction with the Faro Web SDK to unlock additional features in Grafana Cloud Frontend Observability.",
+    "lang": "TypeScript",
+    "stars": 10,
+    "fork": false,
+    "pushedAt": "2026-11-11T19:02:41Z"
+  },
+  {
+    "fullName": "grafana/clusterurl",
+    "name": "clusterurl",
+    "url": "https://github.com/grafana/clusterurl",
+    "desc": "A simple Go package for processing and clustering a URL to extract a generic page route from it",
+    "lang": "Go",
+    "stars": 11,
+    "fork": false,
+    "pushedAt": "2026-11-09T13:04:09Z"
+  },
+  {
+    "fullName": "eskirk/GeneticAlgorithmPong",
+    "name": "GeneticAlgorithmPong",
+    "url": "https://github.com/eskirk/GeneticAlgorithmPong",
+    "desc": "A Python implementation of a genetic algorithm that learns to play pong",
+    "lang": "Python",
+    "stars": 3,
+    "fork": false,
+    "pushedAt": "2018-03-30T19:59:10Z"
+  },
+  {
+    "fullName": "eskirk/population-sim",
+    "name": "population-sim",
+    "url": "https://github.com/eskirk/population-sim",
+    "desc": "A population simulator using a react/pixijs frontend and a go/websocket backend",
+    "lang": "Go",
+    "stars": 0,
+    "fork": false,
+    "pushedAt": "2026-06-29T18:06:01Z"
+  },
+  {
+    "fullName": "eskirk/pi-interactive-orca-subagents",
+    "name": "pi-interactive-orca-subagents",
+    "url": "https://github.com/eskirk/pi-interactive-orca-subagents",
+    "desc": "Interactive subagents for Pi running in native Orca terminal panes.",
+    "lang": "TypeScript",
+    "stars": 1,
+    "fork": true,
+    "pushedAt": "2026-11-10T00:59:33Z"
+  }
+]

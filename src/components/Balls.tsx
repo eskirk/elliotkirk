@@ -360,6 +360,19 @@ export const Balls = () => {
     if (isTouch) scheduleRain();
 
     return () => {
+      // Full teardown: this component now mounts/unmounts on route changes,
+      // so the render + physics loops must stop or they'd leak against a
+      // detached canvas (and duplicate on every return to home).
+      Matter.Render.stop(render);
+      Matter.Runner.stop(runner);
+      Matter.World.clear(engine.current.world, false);
+      Matter.Engine.clear(engine.current);
+      // The canvas was appended to document.body by Matter (outside React's
+      // tree), so React unmounting can't remove it — take it out explicitly
+      // or every route change leaks another full-viewport canvas.
+      if (render.canvas && render.canvas.parentNode) {
+        render.canvas.parentNode.removeChild(render.canvas);
+      }
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('deviceorientation', onOrientation);
