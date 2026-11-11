@@ -9,7 +9,7 @@ export const Balls = () => {
 
   useEffect(() => {
     let runner = Matter.Runner.create();
-    let pageWidth = document.body.clientWidth;
+    let pageWidth = window.innerWidth;
     let pageHeight = window.innerHeight;
 
     let render = Matter.Render.create({
@@ -202,7 +202,7 @@ export const Balls = () => {
     };
 
     const onResize = () => {
-      resize(document.body.clientWidth, window.innerHeight);
+      resize(window.innerWidth, window.innerHeight);
     };
 
     window.addEventListener('keydown', onKeyDown);
