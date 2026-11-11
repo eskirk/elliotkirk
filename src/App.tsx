@@ -25,7 +25,7 @@ export const App = () => {
       <div className="row align-items-center">
         <div className="col-sm ml-md-auto">
           <h4>
-            full stack engineer @{" "}
+            software engineer @{" "}
             <a
               className="job-link"
               href="https://grafana.com/"
@@ -43,6 +43,13 @@ export const App = () => {
         </div>
       </div>
       <Balls />
+      <div className="shortcuts">
+        <span><kbd>a</kbd> add a ball</span>
+        <span><kbd>c</kbd> clear</span>
+        <span><kbd>g</kbd> toggle ground</span>
+        <span><kbd>e</kbd> toggle gravity</span>
+        <span><kbd>r</kbd> reset</span>
+      </div>
     </div>
   );
 };
