@@ -95,7 +95,13 @@ module.exports = {
     // production build but preserves the favicon that HtmlWebpackPlugin
     // copies in from ./favicon.ico.
     path: path.resolve(__dirname, './public/'),
-    filename: 'main.js',
+    // Content-hashed filename in production: nginx sends no Cache-Control, so
+    // Safari's heuristic caching could pin the old unhashed `main.js` for
+    // hours/days after a deploy (iPhone users kept seeing stale builds).
+    // A new hash per content change makes every deploy a guaranteed refetch;
+    // index.html stays the single revalidation point. `clean` removes the
+    // previous hashed bundles from the output on each build.
+    filename: mode === 'production' ? '[name].[contenthash:8].js' : 'main.js',
     clean: mode === 'production' ? { keep: /favicon\.ico$/ } : false,
   },
   devServer: {
