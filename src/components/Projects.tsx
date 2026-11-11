@@ -1,12 +1,18 @@
 import React, { useEffect, useState } from "react";
-import snapshot from "../projects.json";
+// Generated at build time by scripts/fetch-pins.mjs (gitignored, never
+// hand-edited): the pin list + each repo's metadata at deploy time. The page
+// paints from it instantly — and still paints if the API is unreachable —
+// while the runtime fetch below refreshes everything live.
+import snapshotData from "../pins-generated.json";
 
-// Mirror of the public GitHub pins (src/projects.json is the committed
-// snapshot of their order + metadata). The API never exposes *which* repos
-// are pinned to anonymous callers, so the pin list itself is the snapshot;
-// each card then hydrates live from the public REST API (no token, CORS-open,
-// 60 req/hr per visitor IP — six requests per page visit). Any failed fetch
-// just leaves the snapshot values on screen.
+// Mirror of the public GitHub pins. The six repo names are the only datum the
+// anonymous API can't provide (GitHub exposes "which repos are pinned" only
+// to authenticated GraphQL), so they live here as a plain list; everything
+// else — including the card ORDER (newest star count first), descriptions,
+// languages and last-push dates — comes from api.github.com (CORS-open, no
+// token, 60 req/hr per visitor IP: six requests per page visit), layered on
+// top of the build-time snapshot so the page works even with the API blocked
+// or rate-limited.
 
 interface Repo {
   fullName: string;
@@ -19,15 +25,14 @@ interface Repo {
   pushedAt: string;
 }
 
-interface ApiRepo {
-  name?: string;
-  html_url?: string;
-  description?: string | null;
-  language?: string | null;
-  stargazers_count?: number;
-  fork?: boolean;
-  pushed_at?: string;
-}
+const PINNED_REPOS = [
+  "grafana/faro-web-sdk",
+  "grafana/faro-javascript-bundler-plugins",
+  "grafana/clusterurl",
+  "eskirk/GeneticAlgorithmPong",
+  "eskirk/population-sim",
+  "eskirk/pi-interactive-orca-subagents",
+];
 
 // GitHub's own linguist colors for the languages in the pin set, with a
 // neutral fallback for anything added later.
@@ -71,40 +76,79 @@ function fmtStars(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k` : String(n);
 }
 
-const initial: Repo[] = snapshot as Repo[];
+const Card = ({ r }: { r: Repo }) => (
+  <a className="repo-card" href={r.url} target="_blank" rel="noreferrer">
+    <div className="repo-top">
+      <span className="repo-disc" style={{ background: langColor(r.lang) }} />
+      <span className="repo-name">{r.name}</span>
+      {r.fork && <span className="repo-fork">fork</span>}
+    </div>
+    <div className="repo-desc">{r.desc}</div>
+    <div className="repo-meta">
+      {r.lang && (
+        <span className="repo-lang">
+          <span className="repo-dot" style={{ background: langColor(r.lang) }} />
+          {r.lang}
+        </span>
+      )}
+      <span className="repo-stars">
+        ★ <b>{fmtStars(r.stars)}</b>
+      </span>
+      <span className="repo-updated">{relativeTime(r.pushedAt)}</span>
+    </div>
+  </a>
+);
 
 export const Projects = () => {
-  const [repos, setRepos] = useState<Repo[]>(initial);
+  // Paint from the build-time snapshot immediately when it exists (sorted by
+  // stars); null → skeletons until the live fetch lands.
+  const hasSnapshot = Array.isArray(snapshotData) && snapshotData.length > 0;
+  const [repos, setRepos] = useState<Repo[] | null>(
+    hasSnapshot ? (snapshotData as Repo[]).slice().sort((a, b) => b.stars - a.stars) : null
+  );
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    initial.forEach((base, i) => {
-      fetch(`https://api.github.com/repos/${base.fullName}`, {
-        headers: { Accept: "application/vnd.github+json" },
-      })
-        .then((r) => (r.ok ? (r.json() as Promise<ApiRepo>) : null))
-        .then((d) => {
-          if (!cancelled && d) {
-            setRepos((prev) => {
-              const next = [...prev];
-              const cur = next[i] as Repo;
-              next[i] = {
-                ...cur,
-                name: d.name ?? cur.name,
-                url: d.html_url ?? cur.url,
-                desc: d.description ?? cur.desc,
-                lang: d.language ?? cur.lang,
-                stars: d.stargazers_count ?? cur.stars,
-                fork: d.fork ?? cur.fork,
-                pushedAt: d.pushed_at ?? cur.pushedAt,
-              };
-              return next;
-            });
-          }
+    Promise.allSettled(
+      PINNED_REPOS.map((fullName) =>
+        fetch(`https://api.github.com/repos/${fullName}`, {
+          headers: { Accept: "application/vnd.github+json" },
+        }).then((r) => {
+          if (!r.ok) throw new Error(`${fullName}: ${r.status}`);
+          return r.json() as Promise<Record<string, unknown>>;
         })
-        .catch(() => {
-          /* snapshot values stay */
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      const loaded: Repo[] = [];
+      results.forEach((res, i) => {
+        if (res.status !== "fulfilled") return;
+        const fullName = PINNED_REPOS[i];
+        const d = res.value;
+        loaded.push({
+          fullName,
+          name: String(d.name ?? fullName.split("/")[1]),
+          url: String(d.html_url ?? `https://github.com/${fullName}`),
+          desc: String(d.description ?? ""),
+          lang: String(d.language ?? ""),
+          stars: Number(d.stargazers_count ?? 0),
+          fork: Boolean(d.fork),
+          pushedAt: String(d.pushed_at ?? ""),
         });
+      });
+      if (loaded.length === 0) {
+        // Only surface an error when there is nothing on screen to show;
+        // if the build-time snapshot is rendering, a failed refresh is
+        // silently ignored (stale beats empty).
+        if (!(Array.isArray(snapshotData) && snapshotData.length > 0)) {
+          setFailed(true);
+        }
+      } else {
+        // Newest-first by stars — the order the cards appear in.
+        loaded.sort((a, b) => b.stars - a.stars);
+        setRepos(loaded);
+      }
     });
     return () => {
       cancelled = true;
@@ -114,42 +158,28 @@ export const Projects = () => {
   return (
     <div className="projects">
       <h1 className="projects-title">projects</h1>
-      <div className="repo-grid">
-        {repos.map((r) => (
-          <a
-            className="repo-card"
-            key={r.fullName}
-            href={r.url}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <div className="repo-top">
-              <span
-                className="repo-disc"
-                style={{ background: langColor(r.lang) }}
-              />
-              <span className="repo-name">{r.name}</span>
-              {r.fork && <span className="repo-fork">fork</span>}
-            </div>
-            <div className="repo-desc">{r.desc}</div>
-            <div className="repo-meta">
-              {r.lang && (
-                <span className="repo-lang">
-                  <span
-                    className="repo-dot"
-                    style={{ background: langColor(r.lang) }}
-                  />
-                  {r.lang}
-                </span>
-              )}
-              <span className="repo-stars">
-                ★ <b>{fmtStars(r.stars)}</b>
-              </span>
-              <span className="repo-updated">{relativeTime(r.pushedAt)}</span>
-            </div>
-          </a>
-        ))}
-      </div>
+      {failed ? (
+        <div className="repo-empty">
+          Couldn’t reach GitHub right now — reload to try again.
+        </div>
+      ) : (
+        <div className="repo-grid">
+          {repos
+            ? repos.map((r) => <Card key={r.fullName} r={r} />)
+            : PINNED_REPOS.map((fullName) => (
+                <div
+                  className="repo-card repo-skel"
+                  key={fullName}
+                  aria-hidden="true"
+                >
+                  <div className="skel skel-top" />
+                  <div className="skel skel-line" />
+                  <div className="skel skel-line short" />
+                  <div className="skel skel-meta" />
+                </div>
+              ))}
+        </div>
+      )}
     </div>
   );
 };

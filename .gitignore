@@ -10,3 +10,4 @@ public
 dist
 
 *.log
+src/pins-generated.json
