@@ -3,16 +3,19 @@
   position: relative;
   z-index: 1;
   margin-top: 40px;
+  // Foreground is set by JS (applyContrast in App.tsx) to contrast the page's
+  // actual background; the fallbacks keep the current look if JS hasn't run.
+  color: var(--fg, #212529);
 
   .name {
     .git-link {
-      color: rgb(189, 151, 221);
+      color: var(--accent-1, rgb(189, 151, 221));
     }
   }
 
   .job-link {
     text-decoration: none;
-    color: RGB(220, 95, 65);
+    color: var(--accent-2, RGB(220, 95, 65));
   }
 }
 
