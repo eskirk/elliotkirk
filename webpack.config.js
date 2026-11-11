@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
@@ -8,6 +9,22 @@ const pkg = require('./package.json');
 // `yarn start` (development) behave correctly. The default is development
 // to match the dev server.
 const mode = process.env.NODE_ENV || 'development';
+
+// Emits robots.txt and sitemap.xml (kept in src/) into the build output so
+// they end up at the site root. public/ is gitignored and wiped on production
+// builds, so these sources live in src/ and are copied in here.
+class EmitStaticAssetsPlugin {
+  apply(compiler) {
+    compiler.hooks.emit.tap('EmitStaticAssetsPlugin', (compilation) => {
+      for (const file of ['robots.txt', 'sitemap.xml']) {
+        const src = path.join(__dirname, 'src', file);
+        compilation.assets[file] = new webpack.sources.RawSource(
+          fs.readFileSync(src, 'utf8')
+        );
+      }
+    });
+  }
+}
 
 module.exports = {
   mode,
@@ -56,6 +73,7 @@ module.exports = {
       template: path.join(__dirname, 'src', 'index.html'),
       favicon: 'favicon.ico',
     }),
+    new EmitStaticAssetsPlugin(),
     // Inject Faro configuration at build time so no secret/endpoint is
     // hardcoded in source. Defaults keep today's behaviour (dev collector);
     // set FARO_COLLECTOR_URL / FARO_ENVIRONMENT in CI to target production.
