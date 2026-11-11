@@ -10,27 +10,31 @@ export const Balls = () => {
   useEffect(() => {
     let runner = Matter.Runner.create();
     let pageWidth = document.body.clientWidth;
+    let pageHeight = window.innerHeight;
+
     let render = Matter.Render.create({
       element: document.body,
       engine: engine.current,
       options: {
         background: 'transparent',
         width: pageWidth,
-        height: 800,
+        height: pageHeight,
         showAngleIndicator: false,
         wireframes: false,
       },
     });
 
-    let ground = Matter.Bodies.rectangle(
-      pageWidth / 2 - 10,
-      700,
-      pageWidth + 50,
-      60,
-      { isStatic: true }
-    );
+    // A static ground that spans (a touch wider than) the current width and
+    // sits just above the bottom edge. Rebuilt whenever the scene resizes.
+    const makeGround = (width: number, height: number) =>
+      Matter.Bodies.rectangle(width / 2 - 10, height - 100, width + 50, 60, { isStatic: true });
+
+    let ground = makeGround(pageWidth, pageHeight);
 
     let mouse = Matter.Mouse.create(render.canvas);
+    // Default the pointer to the upper-centre so the "a" shortcut places a
+    // ball somewhere sensible before the user has moved over the canvas.
+    mouse.position = { x: pageWidth / 2, y: 40 };
     let mouseConstraint = Matter.MouseConstraint.create(engine.current, {
       mouse: mouse,
       constraint: {
@@ -93,13 +97,15 @@ export const Balls = () => {
 
     const world = engine.current.world;
 
+    // "a" drops a ball at the current pointer position (the canvas-relative
+    // cursor tracked by Matter.Mouse), matching the click behaviour.
     const addBall = () => {
-      const x = Math.random() * pageWidth;
-      const circle = Matter.Bodies.circle(x, 40, Math.random() * 50 + 20, {
+      const { x, y } = mouse.position;
+      const circle = Matter.Bodies.circle(x, y, Math.random() * 50 + 20, {
         render: { fillStyle: _.sample(colors) },
       });
       Matter.World.add(world, circle);
-      faro?.api?.pushEvent?.('ball_created', { x: String(x) });
+      faro?.api?.pushEvent?.('ball_created', { x: String(x), y: String(y) });
     };
 
     const clearAll = () => {
@@ -126,7 +132,7 @@ export const Balls = () => {
 
     const resetScene = () => {
       Matter.World.clear(world, false);
-      ground = Matter.Bodies.rectangle(pageWidth / 2 - 10, 700, pageWidth + 50, 60, { isStatic: true });
+      ground = makeGround(pageWidth, pageHeight);
       world.gravity.y = 1;
       engine.current.gravity.y = 1;
       const freshStack = Matter.Composites.stack(
@@ -146,7 +152,32 @@ export const Balls = () => {
       faro?.api?.pushEvent?.('world_reset');
     };
 
-    window.addEventListener('keydown', (event) => {
+    // Resize the whole scene to fit the window: resize the canvas, rebuild the
+    // ground to span the new width at the bottom, and scale existing balls
+    // proportionally so the layout is preserved.
+    const resize = (newWidth: number, newHeight: number) => {
+      if (newWidth === pageWidth && newHeight === pageHeight) {
+        return;
+      }
+      render.options.width = newWidth;
+      render.options.height = newHeight;
+      render.canvas.width = newWidth;
+      render.canvas.height = newHeight;
+
+      // Rebuild the ground to span the new width at the bottom. The balls are
+      // left where they are — only the floor + canvas bounds change on resize.
+      const groundPresent = world.bodies.includes(ground);
+      Matter.World.remove(world, ground);
+      ground = makeGround(newWidth, newHeight);
+      if (groundPresent) {
+        Matter.World.add(world, ground);
+      }
+
+      pageWidth = newWidth;
+      pageHeight = newHeight;
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return;
@@ -168,11 +199,23 @@ export const Balls = () => {
           resetScene();
           break;
       }
-    });
+    };
+
+    const onResize = () => {
+      resize(document.body.clientWidth, window.innerHeight);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', onResize);
 
     Matter.World.add(engine.current.world, [stack, ground, mouseConstraint]);
     Matter.Render.run(render);
     Matter.Runner.run(runner, engine.current);
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', onResize);
+    };
   });
 
   return <div ref={scene} style={{ width: '100%', height: '100%' }} />;
