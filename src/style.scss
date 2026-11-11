@@ -87,3 +87,33 @@ html, body {
     display: none;
   }
 }
+
+// iOS "enable tilt" pill (rendered only on touch devices that gate the motion
+// sensor). Dark frosted surface so it reads on light and dark pages alike; the
+// shortcuts legend is hidden on touch devices, so the bottom centre is free.
+.tilt-pill {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  max-width: min(92vw, 420px);
+  padding: 10px 16px;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+  color: #fff;
+  background: rgba(16, 16, 22, 0.78);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2);
+  backdrop-filter: blur(10px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.32);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  &.tilt-pill-warn {
+    border-color: rgba(255, 143, 107, 0.65);
+    border-radius: 16px;
+  }
+}
