@@ -3,16 +3,19 @@
   position: relative;
   z-index: 1;
   margin-top: 40px;
+  // Foreground is set by JS (applyContrast in App.tsx) to contrast the page's
+  // actual background; the fallbacks keep the current look if JS hasn't run.
+  color: var(--fg, #212529);
 
   .name {
     .git-link {
-      color: rgb(189, 151, 221);
+      color: var(--accent-1, rgb(189, 151, 221));
     }
   }
 
   .job-link {
     text-decoration: none;
-    color: RGB(220, 95, 65);
+    color: var(--accent-2, RGB(220, 95, 65));
   }
 }
 
@@ -82,28 +85,5 @@ html, body {
   // Desktop-only: hide the keyboard legend on touch devices (phones/tablets).
   @media (pointer: coarse) {
     display: none;
-  }
-}
-
-// Mobile (touch devices): a dark background + white text so the header pops and
-// stays legible over the colourful balls drifting behind it (the fixed
-// full-viewport canvas lets the balls render behind the text). Desktop keeps the
-// default light theme.
-@media (pointer: coarse) {
-  :root {
-    --bs-body-bg: #12121a;
-    --bs-body-color: #ffffff;
-  }
-
-  .top-content {
-    color: #ffffff;
-
-    .name .git-link {
-      color: #d9b3ff;
-    }
-
-    .job-link {
-      color: #ff8f6b;
-    }
   }
 }
