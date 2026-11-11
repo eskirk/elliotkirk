@@ -91,20 +91,82 @@ export const Balls = () => {
       }
     });
 
+    const world = engine.current.world;
+
+    const addBall = () => {
+      const x = Math.random() * pageWidth;
+      const circle = Matter.Bodies.circle(x, 40, Math.random() * 50 + 20, {
+        render: { fillStyle: _.sample(colors) },
+      });
+      Matter.World.add(world, circle);
+      faro?.api?.pushEvent?.('ball_created', { x: String(x) });
+    };
+
+    const clearAll = () => {
+      Matter.World.clear(world, false);
+      faro?.api?.pushEvent?.('world_cleared');
+    };
+
+    const toggleGround = () => {
+      const present = world.bodies.includes(ground);
+      if (present) {
+        Matter.World.remove(world, ground);
+      } else {
+        Matter.World.add(world, ground);
+      }
+      faro?.api?.pushEvent?.('ground_toggled', { present: String(!present) });
+    };
+
+    const toggleGravity = () => {
+      const next = world.gravity.y === 0 ? 1 : 0;
+      world.gravity.y = next;
+      engine.current.gravity.y = next;
+      faro?.api?.pushEvent?.('gravity_toggled', { y: String(next) });
+    };
+
+    const resetScene = () => {
+      Matter.World.clear(world, false);
+      ground = Matter.Bodies.rectangle(pageWidth / 2 - 10, 700, pageWidth + 50, 60, { isStatic: true });
+      world.gravity.y = 1;
+      engine.current.gravity.y = 1;
+      const freshStack = Matter.Composites.stack(
+        pageWidth / 2,
+        0,
+        8,
+        4,
+        0,
+        0,
+        function (x: number, y: number) {
+          return Matter.Bodies.circle(x, y, Math.random() * 50 + 20, {
+            render: { fillStyle: _.sample(colors) },
+          });
+        }
+      );
+      Matter.World.add(world, [ground, freshStack]);
+      faro?.api?.pushEvent?.('world_reset');
+    };
+
     window.addEventListener('keydown', (event) => {
-      if (event.key === 'c') {
-        Matter.World.clear(engine.current.world, false);
-        faro.api.pushEvent('world_cleared');
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
       }
-
-      if (event.key === 'e') {
-        engine.current.world.gravity.y = 0;
-        engine.current.gravity.y = 0;
-        faro.api.pushError(new Error('Gravity set to 0'));
-      }
-
-      if (event.key === 's') {
-        faro.api.setSession({ id: 'custom-session-id-' + Math.random() * 1000 });
+      switch (event.key.toLowerCase()) {
+        case 'a':
+          addBall();
+          break;
+        case 'c':
+          clearAll();
+          break;
+        case 'g':
+          toggleGround();
+          break;
+        case 'e':
+          toggleGravity();
+          break;
+        case 'r':
+          resetScene();
+          break;
       }
     });
 
