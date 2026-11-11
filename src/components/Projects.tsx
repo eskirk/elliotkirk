@@ -1,12 +1,18 @@
 import React, { useEffect, useState } from "react";
+// Generated at build time by scripts/fetch-pins.mjs (gitignored, never
+// hand-edited): the pin list + each repo's metadata at deploy time. The page
+// paints from it instantly — and still paints if the API is unreachable —
+// while the runtime fetch below refreshes everything live.
+import snapshotData from "../pins-generated.json";
 
-// Mirror of the public GitHub pins, populated entirely at runtime: the six
-// repo names are the only datum the anonymous API can't provide (GitHub
-// exposes "which repos are pinned" only to authenticated GraphQL), so they
-// live here as a plain list; everything else — including the card ORDER
-// (newest star count first), descriptions, languages and last-push dates —
-// comes live from api.github.com (CORS-open, no token, 60 req/hr per
-// visitor IP: six requests per page visit).
+// Mirror of the public GitHub pins. The six repo names are the only datum the
+// anonymous API can't provide (GitHub exposes "which repos are pinned" only
+// to authenticated GraphQL), so they live here as a plain list; everything
+// else — including the card ORDER (newest star count first), descriptions,
+// languages and last-push dates — comes from api.github.com (CORS-open, no
+// token, 60 req/hr per visitor IP: six requests per page visit), layered on
+// top of the build-time snapshot so the page works even with the API blocked
+// or rate-limited.
 
 interface Repo {
   fullName: string;
@@ -94,7 +100,12 @@ const Card = ({ r }: { r: Repo }) => (
 );
 
 export const Projects = () => {
-  const [repos, setRepos] = useState<Repo[] | null>(null);
+  // Paint from the build-time snapshot immediately when it exists (sorted by
+  // stars); null → skeletons until the live fetch lands.
+  const hasSnapshot = Array.isArray(snapshotData) && snapshotData.length > 0;
+  const [repos, setRepos] = useState<Repo[] | null>(
+    hasSnapshot ? (snapshotData as Repo[]).slice().sort((a, b) => b.stars - a.stars) : null
+  );
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -127,7 +138,12 @@ export const Projects = () => {
         });
       });
       if (loaded.length === 0) {
-        setFailed(true);
+        // Only surface an error when there is nothing on screen to show;
+        // if the build-time snapshot is rendering, a failed refresh is
+        // silently ignored (stale beats empty).
+        if (!(Array.isArray(snapshotData) && snapshotData.length > 0)) {
+          setFailed(true);
+        }
       } else {
         // Newest-first by stars — the order the cards appear in.
         loaded.sort((a, b) => b.stars - a.stars);

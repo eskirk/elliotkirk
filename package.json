@@ -8,7 +8,8 @@
     "start": "webpack-dev-server --mode development --open --hot",
     "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
     "typecheck": "tsc --noEmit",
-    "test": "tsc --noEmit"
+    "test": "tsc --noEmit",
+    "prebuild": "node scripts/fetch-pins.mjs"
   },
   "repository": {
     "type": "git",
