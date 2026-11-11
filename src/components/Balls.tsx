@@ -323,12 +323,49 @@ export const Balls = () => {
       }
     }
 
+    // --- Ball rain (mobile) ---
+    // On touch devices it drizzles ~1 ball/second — size, colour, drop position
+    // and initial velocity vary per ball so it never feels metronomic —
+    // keeping the scene re-throwing itself for phone users (desktop stays
+    // click-driven). Spawning pauses while the tab is hidden: the physics
+    // clock rides requestAnimationFrame and halts there, so a hidden-tab
+    // backlog would otherwise cascade all at once when the user returns.
+    // Past a modest cap the oldest rain ball retires, so physics stays light
+    // no matter how long the page sits open.
+    const RAIN_BASE_MS = 1000;
+    const RAIN_JITTER_MS = 250; // effective interval: 750–1250ms
+    const RAIN_MAX = 60;
+    const rainBalls: Matter.Body[] = [];
+    let rainTimer = 0;
+    const spawnRainBall = () => {
+      const r = 12 + Math.random() * 28;
+      const x = 30 + Math.random() * Math.max(60, pageWidth - 60);
+      const ball = Matter.Bodies.circle(x, -r - 10, r, {
+        render: { fillStyle: _.sample(colors) },
+      });
+      Matter.Body.setVelocity(ball, { x: (Math.random() - 0.5) * 4, y: 2 });
+      Matter.World.add(world, ball);
+      rainBalls.push(ball);
+      if (rainBalls.length > RAIN_MAX) {
+        Matter.World.remove(world, rainBalls.shift() as Matter.Body, true);
+      }
+    };
+    const scheduleRain = () => {
+      const delay = RAIN_BASE_MS + (Math.random() * 2 - 1) * RAIN_JITTER_MS;
+      rainTimer = window.setTimeout(() => {
+        if (document.visibilityState !== 'hidden') spawnRainBall();
+        scheduleRain();
+      }, delay);
+    };
+    if (isTouch) scheduleRain();
+
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);
       window.removeEventListener('deviceorientation', onOrientation);
       GESTURES.forEach((g) => window.removeEventListener(g, onGesture));
       if (nodataTimer) window.clearTimeout(nodataTimer);
+      if (rainTimer) window.clearTimeout(rainTimer);
       tiltRequestRef.current = null;
     };
     // Deps: the effect builds the whole world once — never re-run it on
