@@ -212,9 +212,70 @@ export const Balls = () => {
     Matter.Render.run(render);
     Matter.Runner.run(runner, engine.current);
 
+    // --- Tilt controls (mobile) ---
+    // On touch devices the balls react to the phone's accelerometer: tilting the
+    // phone steers the gravity vector. Held upright (beta≈90, gamma≈0) it's
+    // normal downward gravity; tipping tips the world like a tray. iOS 13+ gates
+    // DeviceOrientationEvent behind a one-tap permission request; desktop has no
+    // accelerometer, so the whole block is a no-op there.
+    const BASE_G = 1;
+    const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+    const applyTilt = (beta: number, gamma: number) => {
+      const gx = BASE_G * clamp(gamma / 90, -1, 1);
+      const gy = BASE_G * clamp(beta / 90, -1, 1);
+      world.gravity.x = gx;
+      world.gravity.y = gy;
+      engine.current.gravity.x = gx;
+      engine.current.gravity.y = gy;
+    };
+
+    // The deviceorientation listener — attached only when tilt controls are on.
+    const onOrientation = (e: DeviceOrientationEvent) => {
+      if (e.beta == null || e.gamma == null) return;
+      applyTilt(e.beta, e.gamma);
+    };
+
+    const isTouch =
+      'ontouchstart' in window ||
+      (navigator.maxTouchPoints ?? 0) > 0 ||
+      (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
+
+    let motionActive = false;
+    const enableMotion = () => {
+      if (motionActive) return;
+      motionActive = true;
+      window.addEventListener('deviceorientation', onOrientation);
+    };
+
+    let unlockGesture: (() => void) | null = null;
+    if (isTouch) {
+      const DOE: any = (window as any).DeviceOrientationEvent;
+      if (DOE && typeof DOE.requestPermission === 'function') {
+        // iOS 13+: the permission must be requested from a user gesture.
+        unlockGesture = () => {
+          DOE.requestPermission()
+            .then((res: string) => {
+              if (res === 'granted') enableMotion();
+            })
+            .catch(() => {
+              /* tilt controls declined — leave gravity as-is */
+            });
+        };
+        window.addEventListener('pointerdown', unlockGesture, { once: true });
+        window.addEventListener('keydown', unlockGesture, { once: true });
+      } else {
+        enableMotion(); // Android / others: no permission gate
+      }
+    }
+
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);
+      window.removeEventListener('deviceorientation', onOrientation);
+      if (unlockGesture) {
+        window.removeEventListener('pointerdown', unlockGesture);
+        window.removeEventListener('keydown', unlockGesture);
+      }
     };
   });
 
