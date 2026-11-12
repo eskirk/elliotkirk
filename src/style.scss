@@ -81,18 +81,12 @@ html, body {
   }
 
   kbd {
-    // Flex centering + line-height 1 pin the glyph to the box's vertical
-    // middle; top padding +1px compensates for the 2px bottom border so the
-    // glyph is centered in the *outer* keycap, not just the content box.
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-block;
     min-width: 18px;
     margin-right: 6px;
-    padding: 3px 7px 2px;
+    padding: 2px 7px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 11px;
-    line-height: 1;
     text-align: center;
     color: #fff;
     background: rgba(255, 255, 255, 0.16);
