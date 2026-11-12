@@ -1,7 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { Balls } from "./components/Balls";
 import { Projects } from "./components/Projects";
+import { Slackline } from "./components/Slackline";
 import "./style.scss";
+
+// Home-view selection (Esc opens the picker). Persisted per browser; a
+// blocked localStorage (strict privacy) just always falls back to balls.
+type HomeView = "balls" | "slackline";
+const VIEW_KEY = "ek-home-view";
+const loadView = (): HomeView => {
+  try {
+    return window.localStorage.getItem(VIEW_KEY) === "slackline" ? "slackline" : "balls";
+  } catch {
+    return "balls";
+  }
+};
 
 // Set the header's foreground + link colors to contrast the page's *actual*
 // background, so the text stays legible whether the OS renders the page in
@@ -46,6 +59,32 @@ const HOME_TITLE = "Elliot Kirk — Software Engineer";
 export const App = () => {
   const route = useHashRoute();
   const onProjects = route.startsWith("#/projects");
+  const [view, setView] = useState<HomeView>(loadView);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const selectView = (next: HomeView) => {
+    setView(next);
+    try {
+      window.localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      /* storage blocked: the choice still applies for this visit */
+    }
+    setPickerOpen(false);
+  };
+
+  // Esc toggles the view picker on home (it's the only place a "view" exists).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.key === "Escape") {
+        if (pickerOpen) setPickerOpen(false);
+        else if (!onProjects) setPickerOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pickerOpen, onProjects]);
 
   useEffect(() => {
     applyContrast();
@@ -124,16 +163,46 @@ export const App = () => {
           </div>
         </>
       )}
-      {/* The ball scene is home-only: projects is a clean white page, and
-          physics/tilt/rain fully stop (component unmounts) while it's open. */}
-      {!onProjects && <Balls />}
-      {!onProjects && (
+      {/* Home scenes swap by the persisted view choice; projects is a clean
+          white page with no physics (components unmount and tear down). */}
+      {!onProjects && (view === "balls" ? <Balls /> : <Slackline />)}
+      {!onProjects && view === "balls" && (
         <div className="shortcuts">
           <span><kbd>a</kbd> add a ball</span>
           <span><kbd>c</kbd> clear</span>
           <span><kbd>g</kbd> toggle ground</span>
           <span><kbd>e</kbd> toggle gravity</span>
           <span><kbd>r</kbd> reset</span>
+          <span><kbd>esc</kbd> view</span>
+        </div>
+      )}
+      {!onProjects && view === "slackline" && (
+        <div className="shortcuts">
+          <span><kbd>←</kbd><kbd>→</kbd> walk</span>
+          <span><kbd>space</kbd> bounce</span>
+          <span><kbd>r</kbd> respawn</span>
+          <span><kbd>esc</kbd> view</span>
+        </div>
+      )}
+      {pickerOpen && (
+        <div className="picker-backdrop" onClick={() => setPickerOpen(false)}>
+          <div className="picker" onClick={(e) => e.stopPropagation()}>
+            <h4>home view</h4>
+            <button
+              type="button"
+              className={view === "balls" ? "active" : undefined}
+              onClick={() => selectView("balls")}
+            >
+              falling balls
+            </button>
+            <button
+              type="button"
+              className={view === "slackline" ? "active" : undefined}
+              onClick={() => selectView("slackline")}
+            >
+              slackline
+            </button>
+          </div>
         </div>
       )}
       </div>
