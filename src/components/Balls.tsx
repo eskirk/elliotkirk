@@ -21,8 +21,14 @@ export const Balls = () => {
 
   useEffect(() => {
     let runner = Matter.Runner.create();
+    // iOS keeps innerHeight at the URL-bar-expanded size (or reports it mid-
+    // animation), which left the floor floating above the real bottom edge.
+    // visualViewport.height tracks the actually-visible viewport live.
+    const viewportHeight = () =>
+      (window.visualViewport && window.visualViewport.height) || window.innerHeight;
     let pageWidth = window.innerWidth;
-    let pageHeight = window.innerHeight;
+    let pageHeight = viewportHeight();
+    let settleTimer = 0;
 
     let render = Matter.Render.create({
       element: document.body,
@@ -37,9 +43,10 @@ export const Balls = () => {
     });
 
     // A static ground that spans (a touch wider than) the current width and
-    // sits just above the bottom edge. Rebuilt whenever the scene resizes.
+    // is flush with the bottom of the viewport: a 60-unit band whose top
+    // surface sits at height - 60. Rebuilt whenever the scene resizes.
     const makeGround = (width: number, height: number) =>
-      Matter.Bodies.rectangle(width / 2 - 10, height - 100, width + 50, 60, { isStatic: true });
+      Matter.Bodies.rectangle(width / 2 - 10, height - 30, width + 50, 60, { isStatic: true });
 
     let ground = makeGround(pageWidth, pageHeight);
 
@@ -214,11 +221,19 @@ export const Balls = () => {
     };
 
     const onResize = () => {
-      resize(window.innerWidth, window.innerHeight);
+      resize(window.innerWidth, viewportHeight());
+      // URL-bar collapse can fire resize while iOS still reports the old
+      // height; re-check once the animation has settled.
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => {
+        resize(window.innerWidth, viewportHeight());
+      }, 350);
     };
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('resize', onResize);
+    const vv = window.visualViewport;
+    if (vv) vv.addEventListener('resize', onResize);
 
     Matter.World.add(engine.current.world, [stack, ground, mouseConstraint]);
     Matter.Render.run(render);
@@ -394,6 +409,8 @@ export const Balls = () => {
       }
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('resize', onResize);
+      if (vv) vv.removeEventListener('resize', onResize);
+      if (settleTimer) window.clearTimeout(settleTimer);
       window.removeEventListener('deviceorientation', onOrientation);
       GESTURES.forEach((g) => window.removeEventListener(g, onGesture));
       if (nodataTimer) window.clearTimeout(nodataTimer);
