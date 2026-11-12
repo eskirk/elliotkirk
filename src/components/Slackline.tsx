@@ -12,13 +12,15 @@ import * as Matter from "matter-js";
 // (spacebar adds downward force), storing energy that snaps back up.
 
 const SEGMENTS = 26;
-const BED_STIFFNESS = 0.25; // per-segment spring back toward the home line
+const BED_STIFFNESS = 0.07; // per-segment spring back toward the home line
 const BED_DAMPING = 0.08; // tames endless wobble without killing the bounce
 // Must exceed the static-friction grip on the line (mu_s ~1.2 x gravity 0.001),
 // otherwise the walker just sticks and creeps.
-const WALK_FORCE = 0.0028; // horizontal accel (px/ms^2) while an arrow is held
-const PRESS_SAG = 60; // px the bed dips under the walker while space is held
-const BED_POCKET_RADIUS = 130; // px of line around the walker that dips with him
+const MAX_WALK_SPEED = 2.6; // px/tick horizontal cruise // horizontal accel (px/ms^2) while an arrow is held
+// Press pushes the WALKER down (real load path: his legs drive the foot
+// joint into the fabric; the fabric's springs resist — never touch the line).
+const PRESS_FORCE = 1.1; // extra downward accel the walker's legs drive into the fabric under space
+const BODY_WEIGHT = 0.05; // his standing weight, loaded onto the segment under his foot
 const ANCHOR_Y_FRAC = 0.42; // line height above the top of the viewport
 const WEBBING_COLOR = "RebeccaPurple"; // solid webbing, one color end to end
 const FOOT_R = 16; // walker foot radius
@@ -64,6 +66,7 @@ export const Slackline = () => {
     let webbing: Matter.Composite | null = null;
     let bedConstraints: Matter.Constraint[] = [];
     let segHalfW = 0; // ribbon geometry, refreshed by buildLine
+    let lineHomeY = 0; // rest height of the fabric, for dip measurement
     let slacker: Matter.Body;
 
     const anchorY = () => Math.round(pageHeight * ANCHOR_Y_FRAC);
@@ -101,8 +104,8 @@ export const Slackline = () => {
       const segs: Matter.Body[] = [];
       for (let i = 0; i < SEGMENTS; i++) {
         segs.push(
-          Matter.Bodies.rectangle(margin + i * spacing, y0, spacing * 1.15, 9, {
-            collisionFilter: { group: webbingGroup },
+          Matter.Bodies.rectangle(margin + i * spacing, y0, spacing * 1.15, 7, {
+            collisionFilter: { group: webbingGroup, category: 0x0004, mask: 0x0004 },
             render: { visible: false }, // drawn as one continuous ribbon overlay
             chamfer: { radius: 3 },
             friction: 1,
@@ -114,6 +117,7 @@ export const Slackline = () => {
       }
       Matter.Composite.add(webbing, segs);
       segHalfW = (spacing * 1.15) / 2;
+      lineHomeY = y0;
 
       // Trampoline-bed model (what a real trampoline is: fabric + springs to
       // a frame). Each interior segment hangs on TWO invisible springs, one
@@ -131,7 +135,6 @@ export const Slackline = () => {
             stiffness: BED_STIFFNESS,
             damping: BED_DAMPING,
           });
-          (c as any).__homeX = margin + i * spacing; // pocket math target
           bedConstraints.push(c);
         }
       }
@@ -148,15 +151,14 @@ export const Slackline = () => {
           stiffness: BED_STIFFNESS,
           damping: BED_DAMPING,
         });
-        // intentionally no __homeX: post-end springs never pocket
         bedConstraints.push(c);
       };
       endSpring(first, 1, margin + spacing * 0.575);
       endSpring(last, -1, pageWidth - margin - spacing * 0.575);
       Matter.Composite.add(webbing, bedConstraints);
 
-      // Soft links between neighbours: a press dips the walker's local
-      // pocket and drips the trough into adjacent segments.
+      // Soft links between neighbours: the trough the walker's load digs
+      // spills smoothly into adjacent segments.
       for (let i = 0; i < segs.length - 1; i++) {
         Matter.Composite.add(
           webbing,
@@ -166,8 +168,8 @@ export const Slackline = () => {
             pointA: { x: spacing / 2, y: 0 },
             pointB: { x: -spacing / 2, y: 0 },
             length: spacing * 1.02,
-            stiffness: 0.06,
-            damping: 0.1,
+            stiffness: 0.25, // stiff enough that the walker's load spreads
+            damping: 0.1,    // over many segments instead of punching one
           })
         );
       }
@@ -205,7 +207,10 @@ export const Slackline = () => {
         frictionStatic: 1.6,
         density: WALKER_DENSITY,
         restitution: 0,
-        collisionFilter: { category: 0x0001 },
+        // Never touches the webbing (its category/mask excludes it): a
+        // collision rider gets flung by the rebounding bed; the pin carries
+        // him instead.
+        collisionFilter: { category: 0x0001, mask: 0x0001 | 0x0002 },
         render: { visible: false },
       });
       // Balance is the point of slacklining; a spinning tumbleweed is not.
@@ -216,9 +221,9 @@ export const Slackline = () => {
     };
 
     const respawnSlacker = () => {
-      detachFoot();
       Matter.Body.setPosition(slacker, { x: pageWidth / 2, y: anchorY() - 21 });
       Matter.Body.setVelocity(slacker, { x: 0, y: 0 });
+      attached = true;
     };
 
     buildLine();
@@ -244,40 +249,19 @@ export const Slackline = () => {
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
 
-    // --- trampoline press: spacebar lengthens the bed springs under the
-    // walker so the line dips beneath him (storing energy in the springs),
-    // and retracts them on release — the snap home is the launch. ---
+    // --- press / launch state machine ---
+    // The walker is either ATTACHED (carried on the fabric surface) or
+    // FLYING. Pressing space drives his legs into the webbing at the foot
+    // point — the bed dips under him and he rides the dip; the fabric's
+    // bed springs store the energy. Releasing pushes off: the measured dip
+    // sets the launch velocity and his feet leave the bed. Nothing ever
+    // constrains him to the line, so no solver can swallow the launch, and
+    // re-catching is just "descending, feet at the fabric".
     let pressing = false;
     let prevPressing = false;
-    let pocketMax = 0; // deepest dip reached during the current press
-    let footJoint: Matter.Constraint | null = null;
-    let footJointSeg: Matter.Body | null = null;
+    let attached = true;
+    let dipNow = 0; // how far the bed currently dips under him
 
-    const attachFoot = (seg: Matter.Body) => {
-      detachFoot();
-      // rest length ≈ foot radius + half segment height: the foot hangs ON
-      // the fabric, exactly like a shoe gripping a real slackline.
-      footJoint = Matter.Constraint.create({
-        bodyA: slacker,
-        pointA: { x: 0, y: FOOT_R * 0.7 },
-        bodyB: seg,
-        pointB: { x: 0, y: -5 },
-        length: FOOT_R + 4,
-        stiffness: 0.3,
-        damping: 0.05,
-      });
-      footJointSeg = seg;
-      Matter.World.add(world, footJoint);
-    };
-    const detachFoot = () => {
-      if (footJoint) Matter.World.remove(world, footJoint);
-      footJoint = null;
-      footJointSeg = null;
-    };
-    const bedSurfaceY = (x: number) => {
-      const seg = nearestSegment(x);
-      return seg ? seg.position.y - 4.5 : anchorY();
-    };
     const nearestSegment = (x: number) => {
       if (!webbing) return null;
       const bodies = webbing.bodies as Matter.Body[];
@@ -290,60 +274,76 @@ export const Slackline = () => {
     };
 
     Matter.Events.on(engine.current, "beforeUpdate", () => {
-      const m = slacker.mass;
       const wp = slacker.position;
       const vel = slacker.velocity;
       pressing = keysDown.has("Space");
-      if (pressing && !prevPressing) pocketMax = 0;
-      if (!pressing && prevPressing && footJoint && pocketMax > 15) {
-        const pop = Math.min(11, 3 + pocketMax * 0.16);
-        Matter.Body.setVelocity(slacker, { x: slacker.velocity.x, y: -pop });
+      const seg = nearestSegment(wp.x);
+      const surf = seg ? seg.position.y - 3.5 : null; // fabric top under him
+
+      // walked off the end / on the ground: airborne (falling) instead
+      if (attached && (!seg || wp.y + FOOT_R > pageHeight - 60 - FOOT_R + 4)) {
+        attached = false;
+      }
+
+      // His legs load the webbing right under him: standing weight, plus
+      // the spacebar push (tapered so a held key can't bottom him out).
+      dipNow = seg ? Math.max(0, seg.position.y - lineHomeY) : 0;
+      if (attached && seg) {
+        Matter.Body.applyForce(seg, seg.position, {
+          x: 0,
+          y: (BODY_WEIGHT + (pressing && wp.y < pageHeight - 140 ? PRESS_FORCE * Math.max(0, 1 - dipNow / 200) : 0)) * seg.mass,
+        });
+      }
+
+      if (!pressing && prevPressing && attached && dipNow > 8) {
+        // Push-off: feet leave the bed, dip energy becomes launch velocity.
+        const pop = Math.min(11, 2 + dipNow * 0.22);
+        attached = false;
+        Matter.Body.setVelocity(slacker, { x: vel.x, y: -pop });
       }
       prevPressing = pressing;
-      if (keysDown.has("ArrowLeft")) {
-        Matter.Body.applyForce(slacker, wp, { x: -WALK_FORCE * m, y: 0 });
-      }
-      if (keysDown.has("ArrowRight")) {
-        Matter.Body.applyForce(slacker, wp, { x: WALK_FORCE * m, y: 0 });
-      }
 
-      // grip the line: attach when a foot touches the fabric, ride it, and
-      // let go on a strong launch so the walker can actually fly.
-      const seg = nearestSegment(wp.x);
-      if (seg) {
-        const gap = seg.position.y - 4.5 - (wp.y + FOOT_R);
-        if (!footJoint && Math.abs(gap) < 20 && vel.y > -4) {
-          attachFoot(seg);
-        } else if (footJoint) {
-          if (footJointSeg !== seg && Math.abs(seg.position.x - wp.x) < 30) {
-            attachFoot(seg); // hopped to the next segment mid-stride
-          }
-          if (vel.y < -6) {
-            detachFoot(); // strong upward snap → launch into a jump
-          }
+      // Walking drives horizontal velocity directly: the fabric grip needs
+      // mu ~1.6, and no sane push force clears that static threshold —
+      // horizontal control authority, vertical physics untouched.
+      if (keysDown.has("ArrowLeft") || keysDown.has("ArrowRight")) {
+        const dir = keysDown.has("ArrowLeft") ? -1 : 1;
+        if (dir * vel.x < MAX_WALK_SPEED) {
+          const vx = Math.max(-MAX_WALK_SPEED, Math.min(MAX_WALK_SPEED, vel.x + dir * 0.18));
+          Matter.Body.setVelocity(slacker, { x: vx, y: vel.y });
         }
-      } else if (footJoint) {
-        detachFoot();
       }
-      // falling past the line or sitting on the ground: nothing to grip
-      if (footJoint && wp.y + FOOT_R < bedSurfaceY(wp.x) - 60) detachFoot();
 
-      // Bed springs near the walker dip into a pocket while pressing.
-      bedConstraints.forEach((c: any) => {
-        if (c.__homeX === undefined) return; // post-end springs stay taut
-        const dx = Math.abs(c.__homeX - wp.x);
-        const near = dx < BED_POCKET_RADIUS;
-        const target = pressing && near ? PRESS_SAG * (1 - dx / BED_POCKET_RADIUS) : 0;
-        c.__pocket = (c.__pocket ?? 0) + (target - (c.__pocket ?? 0)) * (pressing ? 0.1 : 0.3);
-        c.length = c.__pocket;
-        if (pressing) pocketMax = Math.max(pocketMax, c.__pocket);
-      });
+      if (attached && surf !== null) {
+        // Carried: feet track the fabric surface. Velocity steering — no
+        // constraint to stretch, and the pop sets attached=false BEFORE it
+        // launches, so the pin never fights a jump. (Collision alone was
+        // tried for carrying; a rebounding bed flings a collision rider.)
+        // PD steering to the surface: pure P gain limit-cycles at rest.
+        const follow = (surf - FOOT_R - wp.y) * 0.4 + vel.y * 0.55;
+        Matter.Body.setVelocity(slacker, {
+          x: vel.x,
+          y: Math.max(-18, Math.min(18, follow)),
+        });
+      } else if (!attached && seg && vel.y >= 0 && wp.y + FOOT_R >= surf! - 24 && wp.y < pageHeight - 130) {
+        // Landing: descending and the feet have reached the fabric — he is
+        // standing on it again (collision carries him; no velocity pin,
+        // which fought the solver and shredded walking).
+        attached = true;
+      }
 
-      // Level the fabric: the end-spring couple does most of the work; this
+            // Level the fabric: the end-spring couple does most of the work; this
       // gently snaps away residual hinge so the seam never gapes.
       if (webbing) {
         (webbing.bodies as Matter.Body[]).forEach((b) => {
-          if (Math.abs(b.angle) > 0.005) Matter.Body.setAngle(b, b.angle * 0.6);
+          if (Math.abs(b.angle) > 0.005) {
+            Matter.Body.setAngle(b, b.angle * 0.5);
+            // Verlet: setAngle alone leaves anglePrev stale, and the engine
+            // turns the removed delta back into spin on the next step — the
+            // "snap" was driving the wobble, not damping it. Kill the
+            // angular velocity with it.
+            Matter.Body.setAngularVelocity(b, 0);
+          }
         });
       }
     });
@@ -355,7 +355,7 @@ export const Slackline = () => {
       const bodies = webbing.bodies as Matter.Body[];
       if (bodies.length < 2) return;
       const hw = segHalfW;
-      const hh = 4.5;
+      const hh = 3.5;
       const corner = (b: Matter.Body, lx: number, ly: number) => ({
         x: b.position.x + lx * Math.cos(b.angle) - ly * Math.sin(b.angle),
         y: b.position.y + lx * Math.sin(b.angle) + ly * Math.cos(b.angle),
