@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import * as Matter from "matter-js";
-import _ from "lodash";
 
 // Slackline view (builds on the first sketch: anchored side posts, a chained
 // webbing composite, category-filtered collisions, spacebar press force).
@@ -21,6 +20,7 @@ const WALK_FORCE = 0.0028; // horizontal accel (px/ms^2) while an arrow is held
 const PRESS_SAG = 60; // px the bed dips under the walker while space is held
 const BED_POCKET_RADIUS = 130; // px of line around the walker that dips with him
 const ANCHOR_Y_FRAC = 0.42; // line height above the top of the viewport
+const WEBBING_COLOR = "RebeccaPurple"; // solid webbing, one color end to end
 const FOOT_R = 16; // walker foot radius
 const WALKER_DENSITY = 0.004;
 
@@ -50,7 +50,6 @@ export const Slackline = () => {
     });
 
     const world = engine.current.world;
-    const colors = ["RebeccaPurple", "HotPink", "PaleVioletRed", "Indigo", "LightSlateGray"];
 
     const makeGround = (width: number, height: number) =>
       Matter.Bodies.rectangle(width / 2 - 10, height - 30, width + 50, 60, { isStatic: true });
@@ -103,7 +102,7 @@ export const Slackline = () => {
         segs.push(
           Matter.Bodies.rectangle(margin + i * spacing, y0, spacing * 1.04, 9, {
             collisionFilter: { group: webbingGroup },
-            render: { fillStyle: _.sample(colors) },
+            render: { fillStyle: WEBBING_COLOR },
             chamfer: { radius: 4 },
             friction: 1,
             frictionStatic: 1.4,
