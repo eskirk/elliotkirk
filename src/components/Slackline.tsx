@@ -8,23 +8,23 @@ import * as Matter from "matter-js";
 // stick figure (invisible round body, inertia locked so it can't tumble),
 // a floor band, resize handling, and full teardown for route remounts.
 //
-// The bounce: low-stiffness joints stretch as the figure presses down
-// (spacebar adds downward force), storing energy that snaps back up.
+// The bounce: the fabric's springs stretch as the figure loads the foot
+// spring (spacebar adds gravity to him), storing energy its recoil
+// hands back through the same spring.
 
 const SEGMENTS = 26;
 // Bed stiffness is a Matter constraint fraction: it corrects
 // stiffness*error of velocity per tick, mass-independently — so sag is
 // (load Δv)/stiffness. At 0.012 the line hangs ~23px on its own weight
 // (it IS a saggy elastic rope now) and dips ~35 under the walker.
-const BED_STIFFNESS = 0.006; // per-segment spring toward the home line // per-segment spring back toward the home line
-const BED_DAMPING = 0.2; // A/B: damping back // Matter constraint damping blows up the alternating
-// mode at low stiffness (exponential ± growth); frictionAir damps honestly
+const BED_STIFFNESS = 0.006; // per-segment spring toward the home line
+const BED_DAMPING = 0.2; // light spring damping; frictionAir does the rest
 // Must exceed the static-friction grip on the line (mu_s ~1.2 x gravity 0.001),
 // otherwise the walker just sticks and creeps.
 const MAX_WALK_SPEED = 2.6; // px/tick horizontal cruise
-// Press pushes the WALKER down (real load path: his legs drive the foot
-// joint into the fabric; the fabric's springs resist — never touch the line).
-const PRESS_ACCEL = 12; // extra g's the walker drives into the fabric while space is held
+// Press is extra gravity on the WALKER: it loads the foot spring, which
+// loads the fabric — the only path from him to the line.
+const PRESS_ACCEL = 12; // extra g's while space is held
 const LOAD_SPAN_SEGS = 1.6; // half-width of the contact-force footprint, in segment spacings
 const ANCHOR_Y_FRAC = 0.42; // line height above the top of the viewport
 const WEBBING_COLOR = "RebeccaPurple"; // solid webbing, one color end to end
@@ -142,6 +142,11 @@ export const Slackline = () => {
         for (const end of [-1, 1]) {
           const nearPost = i === 1 || i === segs.length - 2;
           const c = Matter.Constraint.create({
+          // Matter's renderer strokes visible constraints: with the soft
+          // bed each spring spans a real gap to its home anchor and drew
+          // a ghost 'second line' along the rest height. Bodies are
+          // already invisible; so are all springs/links now.
+          render: { visible: false },
             bodyA: segs[i],
             pointA: { x: (end * spacing) / 2, y: 0 },
             pointB: { x: margin + i * spacing + (end * spacing) / 2, y: y0 },
@@ -162,6 +167,11 @@ export const Slackline = () => {
         // spring holds the segment by one corner and bends the first few
         // segments into visible bulges beside the posts.
         const c = Matter.Constraint.create({
+          // Matter's renderer strokes visible constraints: with the soft
+          // bed each spring spans a real gap to its home anchor and drew
+          // a ghost 'second line' along the rest height. Bodies are
+          // already invisible; so are all springs/links now.
+          render: { visible: false },
           bodyA: seg,
           pointA: { x: 0, y: 0 },
           pointB: { x: anchorX, y: y0 },
@@ -186,6 +196,11 @@ export const Slackline = () => {
         Matter.Composite.add(
           webbing,
           Matter.Constraint.create({
+          // Matter's renderer strokes visible constraints: with the soft
+          // bed each spring spans a real gap to its home anchor and drew
+          // a ghost 'second line' along the rest height. Bodies are
+          // already invisible; so are all springs/links now.
+          render: { visible: false },
             bodyA: segs[i],
             bodyB: segs[i + 1],
             // Center-to-center, rest = natural spacing. (These used to
@@ -207,6 +222,11 @@ export const Slackline = () => {
       Matter.Composite.add(
         webbing,
         Matter.Constraint.create({
+          // Matter's renderer strokes visible constraints: with the soft
+          // bed each spring spans a real gap to its home anchor and drew
+          // a ghost 'second line' along the rest height. Bodies are
+          // already invisible; so are all springs/links now.
+          render: { visible: false },
           pointA: { x: margin, y: y0 },
           bodyB: segs[0],
           pointB: { x: -spacing / 2, y: 0 },
@@ -217,6 +237,11 @@ export const Slackline = () => {
       Matter.Composite.add(
         webbing,
         Matter.Constraint.create({
+          // Matter's renderer strokes visible constraints: with the soft
+          // bed each spring spans a real gap to its home anchor and drew
+          // a ghost 'second line' along the rest height. Bodies are
+          // already invisible; so are all springs/links now.
+          render: { visible: false },
           pointA: { x: pageWidth - margin, y: y0 },
           bodyB: segs[segs.length - 1],
           pointB: { x: spacing / 2, y: 0 },
@@ -288,6 +313,8 @@ export const Slackline = () => {
     // re-catching is just "descending, feet at the fabric".
     let pressing = false;
     let attached = true;
+    let lastPx: number[] = [];
+    let lastPy: number[] = [];
     let lastFootSegY = 0; // for measuring the fabric's real velocity
     let bedVy = 0; // fabric surface velocity under the foot (px/tick, -=up)
     // Matter's applyForce is in force units: a Δv of `a` px/tick^2 on a
@@ -425,6 +452,7 @@ export const Slackline = () => {
       if (bodies.length < 2) return;
       const hw = segHalfW;
       const hh = 3.5;
+      // (lastPx/lastPy publish the drawn centerline so the figure can stand ON it)
       // The physics line has a small every-other-segment ripple (a
       // discretization artifact of per-segment springs; stiffer couplings
       // that remove it also stiffen the whole bed). The webbing is drawn
@@ -445,6 +473,8 @@ export const Slackline = () => {
         top.push({ x, y: py[i] - hh });
         bot.push({ x, y: py[i] + hh });
       }
+      lastPx = px;
+      lastPy = py;
       const trace = (pts: { x: number; y: number }[]) => {
         ctx.moveTo(pts[0].x, pts[0].y);
         for (let i = 1; i < pts.length - 1; i++) {
@@ -482,7 +512,20 @@ export const Slackline = () => {
       ctx.strokeStyle = fg;
       ctx.lineWidth = 3.5;
       ctx.lineCap = "round";
-      // figure anchored to the foot-ball: sole at y + FOOT_R, hip ~y-6
+      // Soles stand ON the drawn webbing, not on the physics foot: the
+      // contact spring lets the foot ball sink a few px into the fabric
+      // (that sink IS the launch mechanism), but drawing it there made
+      // the feet punch through the ribbon. Legs compress instead — read
+      // as bent knees under load.
+      let footY = y + FOOT_R - 2;
+      if (lastPx.length > 1) {
+        let xi = 0;
+        while (xi < lastPx.length - 2 && lastPx[xi + 1] < x) xi++;
+        const span = lastPx[xi + 1] - lastPx[xi] || 1;
+        const t = Math.max(0, Math.min(1, (x - lastPx[xi]) / span));
+        const surfTop = lastPy[xi] * (1 - t) + lastPy[xi + 1] * t - 3.5;
+        footY = Math.min(footY, surfTop + 2);
+      }
       // head
       ctx.beginPath();
       ctx.arc(x, y - 44, 7, 0, Math.PI * 2);
@@ -501,9 +544,9 @@ export const Slackline = () => {
       ctx.stroke();
       // legs: planted, striding while walking
       ctx.beginPath();
-      ctx.moveTo(x - 8 - stride * 0.5, y + FOOT_R - 2);
+      ctx.moveTo(x - 8 - stride * 0.5, footY);
       ctx.lineTo(x, y - 6);
-      ctx.lineTo(x + 8 + stride * 0.5, y + FOOT_R - 2);
+      ctx.lineTo(x + 8 + stride * 0.5, footY);
       ctx.stroke();
     });
 
