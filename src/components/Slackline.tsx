@@ -12,15 +12,17 @@ import * as Matter from "matter-js";
 // (spacebar adds downward force), storing energy that snaps back up.
 
 const SEGMENTS = 26;
-const BED_STIFFNESS = 0.07; // per-segment spring back toward the home line
-const BED_DAMPING = 0.08; // tames endless wobble without killing the bounce
+const BED_STIFFNESS = 0.045; // per-segment spring back toward the home line
+const BED_DAMPING = 0.25; // tames endless wobble without killing the bounce
 // Must exceed the static-friction grip on the line (mu_s ~1.2 x gravity 0.001),
 // otherwise the walker just sticks and creeps.
 const MAX_WALK_SPEED = 2.6; // px/tick horizontal cruise // horizontal accel (px/ms^2) while an arrow is held
 // Press pushes the WALKER down (real load path: his legs drive the foot
 // joint into the fabric; the fabric's springs resist — never touch the line).
-const PRESS_FORCE = 1.1; // extra downward accel the walker's legs drive into the fabric under space
-const BODY_WEIGHT = 0.05; // his standing weight, loaded onto the segment under his foot
+const PRESS_FORCE = 0.9; // extra downward accel the walker's legs drive into the fabric under space
+const BODY_WEIGHT = 0.03; // his standing weight, spread across nearby segments
+const LOAD_SPAN_SEGS = 3.5; // half-width of the load kernel, in segment spacings
+const BED_SPREAD = 0.62; // how far a dip drags its neighbours' spring targets
 const ANCHOR_Y_FRAC = 0.42; // line height above the top of the viewport
 const WEBBING_COLOR = "RebeccaPurple"; // solid webbing, one color end to end
 const FOOT_R = 16; // walker foot radius
@@ -67,6 +69,8 @@ export const Slackline = () => {
     let bedConstraints: Matter.Constraint[] = [];
     let segHalfW = 0; // ribbon geometry, refreshed by buildLine
     let lineHomeY = 0; // rest height of the fabric, for dip measurement
+    let segBed: Matter.Constraint[][] = []; // bed springs by segment index
+    let loadHalfW = 100; // kernel half-width in px, refreshed by buildLine
     let slacker: Matter.Body;
 
     const anchorY = () => Math.round(pageHeight * ANCHOR_Y_FRAC);
@@ -77,6 +81,7 @@ export const Slackline = () => {
       webbing = null;
       anchors = [];
       bedConstraints = [];
+      segBed = [];
     };
 
     const buildLine = () => {
@@ -101,6 +106,8 @@ export const Slackline = () => {
       ];
 
       webbing = Matter.Composite.create({ label: "webbing" });
+      segBed = [];
+      loadHalfW = spacing * LOAD_SPAN_SEGS;
       const segs: Matter.Body[] = [];
       for (let i = 0; i < SEGMENTS; i++) {
         segs.push(
@@ -111,7 +118,7 @@ export const Slackline = () => {
             friction: 1,
             frictionStatic: 1.4,
             density: 0.004,
-            frictionAir: 0.04,
+            frictionAir: 0.07,
           })
         );
       }
@@ -125,24 +132,27 @@ export const Slackline = () => {
       // torque, so segments hinge down around it and the line gaps. The
       // end-pair forms a force couple that keeps every segment level.
       bedConstraints = [];
+      for (let i = 0; i < segs.length; i++) segBed.push([]);
       for (let i = 1; i < segs.length - 1; i++) {
         for (const end of [-1, 1]) {
+          const nearPost = i === 1 || i === segs.length - 2;
           const c = Matter.Constraint.create({
             bodyA: segs[i],
             pointA: { x: (end * spacing) / 2, y: 0 },
             pointB: { x: margin + i * spacing + (end * spacing) / 2, y: y0 },
             length: 0,
-            stiffness: BED_STIFFNESS,
+            stiffness: nearPost ? BED_STIFFNESS * 1.8 : BED_STIFFNESS,
             damping: BED_DAMPING,
           });
           bedConstraints.push(c);
+          segBed[i].push(c);
         }
       }
       // End segments get a spring at their free end too; otherwise they
       // hang off the single rigid pin like a flag and gap at the posts.
       const first = segs[0];
       const last = segs[segs.length - 1];
-      const endSpring = (seg: Matter.Body, end: number, anchorX: number) => {
+      const endSpring = (seg: Matter.Body, idx: number, end: number, anchorX: number) => {
         const c = Matter.Constraint.create({
           bodyA: seg,
           pointA: { x: (end * spacing) / 2, y: 0 },
@@ -152,9 +162,10 @@ export const Slackline = () => {
           damping: BED_DAMPING,
         });
         bedConstraints.push(c);
+        segBed[idx].push(c);
       };
-      endSpring(first, 1, margin + spacing * 0.575);
-      endSpring(last, -1, pageWidth - margin - spacing * 0.575);
+      endSpring(first, 0, 1, margin + spacing * 0.575);
+      endSpring(last, segs.length - 1, -1, pageWidth - margin - spacing * 0.575);
       Matter.Composite.add(webbing, bedConstraints);
 
       // Soft links between neighbours: the trough the walker's load digs
@@ -285,19 +296,51 @@ export const Slackline = () => {
         attached = false;
       }
 
-      // His legs load the webbing right under him: standing weight, plus
-      // the spacebar push (tapered so a held key can't bottom him out).
+      // Elastic spread: every bed spring's anchor tracks the neighbours'
+      // average dip, which is the tension term a continuous webbing has.
+      // Without it each segment springs back to its OWN home independently,
+      // so the stretch stays a sharp notch under the foot instead of a
+      // shallow V through the whole line. Mutating the anchors makes the
+      // discretized string behave like a continuous one at rest.
+      const bodies = webbing ? (webbing.bodies as Matter.Body[]) : [];
+      const n = bodies.length;
+      if (n > 2) {
+        const disp = (i: number) =>
+          i <= 0 || i >= n - 1 ? 0 : bodies[i].position.y - lineHomeY;
+        for (let i = 1; i < n - 1; i++) {
+          const want = Math.max(-140, Math.min(140, BED_SPREAD * ((disp(i - 1) + disp(i + 1)) / 2)));
+          for (const c of segBed[i]) {
+            const pb = c.pointB as { x: number; y: number } & { __ty?: number };
+            const cur = pb.__ty === undefined ? 0 : pb.__ty;
+            const step = Math.max(-0.75, Math.min(0.75, want - cur));
+            pb.__ty = cur + step;
+            pb.y = lineHomeY + pb.__ty;
+          }
+        }
+      }
+
+      // His load — standing weight plus the spacebar push (tapered so a
+      // held key can't bottom him out) — presses on a KERNEL of nearby
+      // segments, not one: hammering a single body excites the bed's
+      // high-frequency wobble (the visible jitter, worst mid-rebound).
       dipNow = seg ? Math.max(0, seg.position.y - lineHomeY) : 0;
-      if (attached && seg) {
-        Matter.Body.applyForce(seg, seg.position, {
-          x: 0,
-          y: (BODY_WEIGHT + (pressing && wp.y < pageHeight - 140 ? PRESS_FORCE * Math.max(0, 1 - dipNow / 200) : 0)) * seg.mass,
+      if (attached && seg && n > 2) {
+        const total =
+          BODY_WEIGHT +
+          (pressing && wp.y < pageHeight - 140
+            ? PRESS_FORCE * Math.max(0, 1 - dipNow / 160)
+            : 0);
+        bodies.forEach((b) => {
+          const w = Math.max(0, 1 - Math.abs(b.position.x - wp.x) / loadHalfW);
+          if (w > 0) {
+            Matter.Body.applyForce(b, b.position, { x: 0, y: total * w * b.mass });
+          }
         });
       }
 
       if (!pressing && prevPressing && attached && dipNow > 8) {
         // Push-off: feet leave the bed, dip energy becomes launch velocity.
-        const pop = Math.min(11, 2 + dipNow * 0.22);
+        const pop = Math.min(11, 2 + dipNow * 0.26);
         attached = false;
         Matter.Body.setVelocity(slacker, { x: vel.x, y: -pop });
       }
@@ -323,7 +366,7 @@ export const Slackline = () => {
         const follow = (surf - FOOT_R - wp.y) * 0.4 + vel.y * 0.55;
         Matter.Body.setVelocity(slacker, {
           x: vel.x,
-          y: Math.max(-18, Math.min(18, follow)),
+          y: Math.max(-12, Math.min(12, follow)),
         });
       } else if (!attached && seg && vel.y >= 0 && wp.y + FOOT_R >= surf! - 24 && wp.y < pageHeight - 130) {
         // Landing: descending and the feet have reached the fabric — he is
