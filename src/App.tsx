@@ -122,11 +122,6 @@ export const App = () => {
               </h4>
             </div>
           </div>
-          <div className="row align-items-center">
-            <div className="col-sm ml-md-auto">
-              <h4>more to come</h4>
-            </div>
-          </div>
         </>
       )}
       {/* The ball scene is home-only: projects is a clean white page, and

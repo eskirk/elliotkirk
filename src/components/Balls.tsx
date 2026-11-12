@@ -127,8 +127,13 @@ export const Balls = () => {
       faro?.api?.pushEvent?.('ball_created', { x: String(x), y: String(y) });
     };
 
+    // Bodies spawned by the ball-rain loop (shared so reset/clear can drop
+    // stale references — see the rain section below).
+    const rainBalls: Matter.Body[] = [];
+
     const clearAll = () => {
       Matter.World.clear(world, false);
+      rainBalls.length = 0;
       faro?.api?.pushEvent?.('world_cleared');
     };
 
@@ -151,6 +156,7 @@ export const Balls = () => {
 
     const resetScene = () => {
       Matter.World.clear(world, false);
+      rainBalls.length = 0;
       ground = makeGround(pageWidth, pageHeight);
       world.gravity.y = 1;
       engine.current.gravity.y = 1;
@@ -357,19 +363,18 @@ export const Balls = () => {
       }
     }
 
-    // --- Ball rain (mobile) ---
-    // On touch devices it drizzles ~1 ball/second — size, colour, drop position
-    // and initial velocity vary per ball so it never feels metronomic —
-    // keeping the scene re-throwing itself for phone users (desktop stays
-    // click-driven). Spawning pauses while the tab is hidden: the physics
-    // clock rides requestAnimationFrame and halts there, so a hidden-tab
-    // backlog would otherwise cascade all at once when the user returns.
+    // --- Ball rain (all devices) ---
+    // A ~1 ball/second drizzle — size, colour, drop position and initial
+    // velocity vary per ball so it never feels metronomic — keeping the scene
+    // re-throwing itself whether the visitor taps or clicks. Spawning pauses
+    // while the tab is hidden: the physics clock rides requestAnimationFrame
+    // and halts there, so a hidden-tab backlog would otherwise cascade all
+    // at once when the user returns.
     // Past a modest cap the oldest rain ball retires, so physics stays light
     // no matter how long the page sits open.
     const RAIN_BASE_MS = 1000;
     const RAIN_JITTER_MS = 250; // effective interval: 750–1250ms
     const RAIN_MAX = 60;
-    const rainBalls: Matter.Body[] = [];
     let rainTimer = 0;
     const spawnRainBall = () => {
       const r = 12 + Math.random() * 28;
@@ -391,7 +396,7 @@ export const Balls = () => {
         scheduleRain();
       }, delay);
     };
-    if (isTouch) scheduleRain();
+    scheduleRain();
 
     return () => {
       // Full teardown: this component now mounts/unmounts on route changes,
