@@ -10,6 +10,9 @@
   .name {
     .git-link {
       color: var(--accent-1, rgb(189, 151, 221));
+      // JSX collapses the newline whitespace between "elliot kirk" and the
+      // link, so the logo needs an explicit word-space-sized gap.
+      margin-left: 0.35em;
     }
   }
 
