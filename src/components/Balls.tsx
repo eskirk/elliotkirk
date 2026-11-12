@@ -3,12 +3,17 @@ import { faro } from '@grafana/faro-web-sdk';
 import * as Matter from 'matter-js';
 import _ from 'lodash';
 
+// Set once, on the first gated visit, so the tilt hint pill shows exactly
+// once ever (iOS site grants persist, so later loads enable silently).
+const TILT_HINT_KEY = 'ek-tilt-hint-shown';
+
 export const Balls = () => {
   const scene = useRef<HTMLDivElement>(null);
   const engine = useRef(Matter.Engine.create());
   // Tilt-permission UI state, shown on iOS only:
-  //   'hidden' — nothing to show (desktop, Android, or motion already running)
-  //   'enable' — tap the pill to grant motion access
+  //   'hidden' — nothing to show (desktop, Android, motion already running,
+  //              or already-seen loads where permission resolves silently)
+  //   'enable' — one-time discoverability hint (retired via localStorage)
   //   'denied' — iOS refused (earlier dismissal or Safari setting)
   //   'nodata' — granted but the sensor never fired (per-site Safari toggle)
   const [tilt, setTilt] = useState<'hidden' | 'enable' | 'denied' | 'nodata'>('hidden');
@@ -314,9 +319,23 @@ export const Balls = () => {
 
     tiltRequestRef.current = gated ? request : null;
 
+    // iOS grants motion access per *site*: once allowed, a later
+    // requestPermission() (still called from a gesture) resolves instantly
+    // with no dialog. So the request fires silently on the first tap — no
+    // pill needed as a gate. The 'enable' pill is now a ONE-TIME hint (so
+    // the tilt feature stays discoverable), retired forever via localStorage
+    // after its first appearance; the warn pills still surface real
+    // failures (denied, or granted-but-no-sensor-data).
     if (isTouch) {
       if (gated) {
-        setTilt('enable');
+        let hintSeen = true;
+        try {
+          hintSeen = window.localStorage.getItem(TILT_HINT_KEY) === "1";
+          if (!hintSeen) window.localStorage.setItem(TILT_HINT_KEY, "1");
+        } catch {
+          /* storage blocked (e.g. strict privacy mode): never show the hint */
+        }
+        if (!hintSeen) setTilt("enable");
         GESTURES.forEach((g) => window.addEventListener(g, onGesture));
       } else {
         enableMotion(false); // Android / others: no permission gate
