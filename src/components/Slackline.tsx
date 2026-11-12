@@ -100,10 +100,10 @@ export const Slackline = () => {
       const segs: Matter.Body[] = [];
       for (let i = 0; i < SEGMENTS; i++) {
         segs.push(
-          Matter.Bodies.rectangle(margin + i * spacing, y0, spacing * 1.04, 9, {
+          Matter.Bodies.rectangle(margin + i * spacing, y0, spacing * 1.15, 9, {
             collisionFilter: { group: webbingGroup },
             render: { fillStyle: WEBBING_COLOR },
-            chamfer: { radius: 4 },
+            chamfer: { radius: 3 },
             friction: 1,
             frictionStatic: 1.4,
             density: 0.004,
@@ -114,23 +114,43 @@ export const Slackline = () => {
       Matter.Composite.add(webbing, segs);
 
       // Trampoline-bed model (what a real trampoline is: fabric + springs to
-      // a frame). Each interior segment hangs on an invisible spring to its
-      // home point; the walker's press displaces it, the spring stores the
-      // energy and throws back. A pure catenary chain can't work at this
-      // aspect ratio — a near-horizontal rope has no vertical stiffness.
+      // a frame). Each interior segment hangs on TWO invisible springs, one
+      // at each end: a single center spring fixes position but exerts no
+      // torque, so segments hinge down around it and the line gaps. The
+      // end-pair forms a force couple that keeps every segment level.
       bedConstraints = [];
       for (let i = 1; i < segs.length - 1; i++) {
-        bedConstraints.push(
-          Matter.Constraint.create({
+        for (const end of [-1, 1]) {
+          const c = Matter.Constraint.create({
             bodyA: segs[i],
-            pointA: { x: 0, y: 0 },
-            pointB: { x: margin + i * spacing, y: y0 }, // world anchor (no bodyB)
+            pointA: { x: (end * spacing) / 2, y: 0 },
+            pointB: { x: margin + i * spacing + (end * spacing) / 2, y: y0 },
             length: 0,
             stiffness: BED_STIFFNESS,
             damping: BED_DAMPING,
-          })
-        );
+          });
+          (c as any).__homeX = margin + i * spacing; // pocket math target
+          bedConstraints.push(c);
+        }
       }
+      // End segments get a spring at their free end too; otherwise they
+      // hang off the single rigid pin like a flag and gap at the posts.
+      const first = segs[0];
+      const last = segs[segs.length - 1];
+      const endSpring = (seg: Matter.Body, end: number, anchorX: number) => {
+        const c = Matter.Constraint.create({
+          bodyA: seg,
+          pointA: { x: (end * spacing) / 2, y: 0 },
+          pointB: { x: anchorX, y: y0 },
+          length: 0,
+          stiffness: BED_STIFFNESS,
+          damping: BED_DAMPING,
+        });
+        // intentionally no __homeX: post-end springs never pocket
+        bedConstraints.push(c);
+      };
+      endSpring(first, 1, margin + spacing * 0.575);
+      endSpring(last, -1, pageWidth - margin - spacing * 0.575);
       Matter.Composite.add(webbing, bedConstraints);
 
       // Soft links between neighbours: a press dips the walker's local
@@ -308,14 +328,22 @@ export const Slackline = () => {
 
       // Bed springs near the walker dip into a pocket while pressing.
       bedConstraints.forEach((c: any) => {
-        const home = c.pointB as { x: number; y: number };
-        const dx = Math.abs(home.x - wp.x);
+        if (c.__homeX === undefined) return; // post-end springs stay taut
+        const dx = Math.abs(c.__homeX - wp.x);
         const near = dx < BED_POCKET_RADIUS;
         const target = pressing && near ? PRESS_SAG * (1 - dx / BED_POCKET_RADIUS) : 0;
         c.__pocket = (c.__pocket ?? 0) + (target - (c.__pocket ?? 0)) * (pressing ? 0.1 : 0.3);
         c.length = c.__pocket;
         if (pressing) pocketMax = Math.max(pocketMax, c.__pocket);
       });
+
+      // Level the fabric: the end-spring couple does most of the work; this
+      // gently snaps away residual hinge so the seam never gapes.
+      if (webbing) {
+        (webbing.bodies as Matter.Body[]).forEach((b) => {
+          if (Math.abs(b.angle) > 0.005) Matter.Body.setAngle(b, b.angle * 0.6);
+        });
+      }
     });
 
     // --- stick figure overlay (Matter renders the webbing + posts itself) ---
