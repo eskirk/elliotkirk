@@ -12,17 +12,20 @@ import * as Matter from "matter-js";
 // (spacebar adds downward force), storing energy that snaps back up.
 
 const SEGMENTS = 26;
-const BED_STIFFNESS = 0.045; // per-segment spring back toward the home line
-const BED_DAMPING = 0.25; // tames endless wobble without killing the bounce
+// Bed stiffness is a Matter constraint fraction: it corrects
+// stiffness*error of velocity per tick, mass-independently — so sag is
+// (load Δv)/stiffness. At 0.012 the line hangs ~23px on its own weight
+// (it IS a saggy elastic rope now) and dips ~35 under the walker.
+const BED_STIFFNESS = 0.006; // per-segment spring toward the home line // per-segment spring back toward the home line
+const BED_DAMPING = 0.2; // A/B: damping back // Matter constraint damping blows up the alternating
+// mode at low stiffness (exponential ± growth); frictionAir damps honestly
 // Must exceed the static-friction grip on the line (mu_s ~1.2 x gravity 0.001),
 // otherwise the walker just sticks and creeps.
-const MAX_WALK_SPEED = 2.6; // px/tick horizontal cruise // horizontal accel (px/ms^2) while an arrow is held
+const MAX_WALK_SPEED = 2.6; // px/tick horizontal cruise
 // Press pushes the WALKER down (real load path: his legs drive the foot
 // joint into the fabric; the fabric's springs resist — never touch the line).
-const PRESS_FORCE = 0.9; // extra downward accel the walker's legs drive into the fabric under space
-const BODY_WEIGHT = 0.03; // his standing weight, spread across nearby segments
-const LOAD_SPAN_SEGS = 3.5; // half-width of the load kernel, in segment spacings
-const BED_SPREAD = 0.62; // how far a dip drags its neighbours' spring targets
+const PRESS_ACCEL = 12; // extra g's the walker drives into the fabric while space is held
+const LOAD_SPAN_SEGS = 1.6; // half-width of the contact-force footprint, in segment spacings
 const ANCHOR_Y_FRAC = 0.42; // line height above the top of the viewport
 const WEBBING_COLOR = "RebeccaPurple"; // solid webbing, one color end to end
 const FOOT_R = 16; // walker foot radius
@@ -68,7 +71,6 @@ export const Slackline = () => {
     let webbing: Matter.Composite | null = null;
     let bedConstraints: Matter.Constraint[] = [];
     let segHalfW = 0; // ribbon geometry, refreshed by buildLine
-    let lineHomeY = 0; // rest height of the fabric, for dip measurement
     let segBed: Matter.Constraint[][] = []; // bed springs by segment index
     let loadHalfW = 100; // kernel half-width in px, refreshed by buildLine
     let slacker: Matter.Body;
@@ -112,19 +114,22 @@ export const Slackline = () => {
       for (let i = 0; i < SEGMENTS; i++) {
         segs.push(
           Matter.Bodies.rectangle(margin + i * spacing, y0, spacing * 1.15, 7, {
+            // Negative group: segments never collide with each other. They
+            // overlap 1.15x for ribbon continuity, and as colliding
+            // bodies that overlap became a repulsion spring — the softer
+            // bed could no longer out-muscle it (rest-state sawtooth).
             collisionFilter: { group: webbingGroup, category: 0x0004, mask: 0x0004 },
             render: { visible: false }, // drawn as one continuous ribbon overlay
             chamfer: { radius: 3 },
             friction: 1,
             frictionStatic: 1.4,
             density: 0.004,
-            frictionAir: 0.07,
+            frictionAir: 0.03,
           })
         );
       }
       Matter.Composite.add(webbing, segs);
       segHalfW = (spacing * 1.15) / 2;
-      lineHomeY = y0;
 
       // Trampoline-bed model (what a real trampoline is: fabric + springs to
       // a frame). Each interior segment hangs on TWO invisible springs, one
@@ -152,10 +157,13 @@ export const Slackline = () => {
       // hang off the single rigid pin like a flag and gap at the posts.
       const first = segs[0];
       const last = segs[segs.length - 1];
-      const endSpring = (seg: Matter.Body, idx: number, end: number, anchorX: number) => {
+      const endSpring = (seg: Matter.Body, idx: number, anchorX: number) => {
+        // Center-anchored like the other bed springs: an edge-anchored
+        // spring holds the segment by one corner and bends the first few
+        // segments into visible bulges beside the posts.
         const c = Matter.Constraint.create({
           bodyA: seg,
-          pointA: { x: (end * spacing) / 2, y: 0 },
+          pointA: { x: 0, y: 0 },
           pointB: { x: anchorX, y: y0 },
           length: 0,
           stiffness: BED_STIFFNESS,
@@ -164,8 +172,12 @@ export const Slackline = () => {
         bedConstraints.push(c);
         segBed[idx].push(c);
       };
-      endSpring(first, 0, 1, margin + spacing * 0.575);
-      endSpring(last, segs.length - 1, -1, pageWidth - margin - spacing * 0.575);
+      // Anchor exactly under the body-side point's REST position: the
+      // old 0.575-spacing offsets left every end spring permanently
+      // stretched, squeezing the line inward from both posts. Invisible
+      // on the stiff bed; with the soft bed the squeeze buckled it.
+      endSpring(first, 0, first.position.x);
+      endSpring(last, segs.length - 1, last.position.x);
       Matter.Composite.add(webbing, bedConstraints);
 
       // Soft links between neighbours: the trough the walker's load digs
@@ -176,11 +188,17 @@ export const Slackline = () => {
           Matter.Constraint.create({
             bodyA: segs[i],
             bodyB: segs[i + 1],
-            pointA: { x: spacing / 2, y: 0 },
-            pointB: { x: -spacing / 2, y: 0 },
+            // Center-to-center, rest = natural spacing. (These used to
+            // anchor at ±spacing/2 — i.e. ZERO world distance at rest —
+            // so every link pulled at full 1.02*spacing extension, ~27g
+            // of phantom compression through the line. That stored energy
+            // is what the checkerboard mode fed on until the line snapped
+            // and threw the walker through.)
+            pointA: { x: 0, y: 0 },
+            pointB: { x: 0, y: 0 },
             length: spacing * 1.02,
-            stiffness: 0.25, // stiff enough that the walker's load spreads
-            damping: 0.1,    // over many segments instead of punching one
+            stiffness: 0.25,
+            damping: 0.2,
           })
         );
       }
@@ -269,9 +287,16 @@ export const Slackline = () => {
     // constrains him to the line, so no solver can swallow the launch, and
     // re-catching is just "descending, feet at the fabric".
     let pressing = false;
-    let prevPressing = false;
     let attached = true;
-    let dipNow = 0; // how far the bed currently dips under him
+    let lastFootSegY = 0; // for measuring the fabric's real velocity
+    let bedVy = 0; // fabric surface velocity under the foot (px/tick, -=up)
+    // Matter's applyForce is in force units: a Δv of `a` px/tick^2 on a
+    // body of mass m needs F = a*m/(gravity.scale*dt^2). Passing the bare
+    // a*m (the mistake here the first time) multiplied every contact
+    // force by ~3.6 and launched the walker out of the world.
+    const dtSq = (1000 / 60) ** 2;
+    const gravityStep = engine.current.gravity.y * engine.current.gravity.scale * dtSq;
+    const forceScale = 1 / dtSq; // F = (Δv px/tick^2) * mass / dt^2
 
     const nearestSegment = (x: number) => {
       if (!webbing) return null;
@@ -296,55 +321,74 @@ export const Slackline = () => {
         attached = false;
       }
 
-      // Elastic spread: every bed spring's anchor tracks the neighbours'
-      // average dip, which is the tension term a continuous webbing has.
-      // Without it each segment springs back to its OWN home independently,
-      // so the stretch stays a sharp notch under the foot instead of a
-      // shallow V through the whole line. Mutating the anchors makes the
-      // discretized string behave like a continuous one at rest.
+      if (seg) {
+        bedVy = lastFootSegY ? seg.position.y - lastFootSegY : 0;
+        lastFootSegY = seg.position.y;
+      } else {
+        bedVy = 0;
+      }
+
+      // Foot contact: a soft spring between feet and fabric — the only
+      // vertical coupling in the scene, and it is a real force on both
+      // sides (Newton 3: the reaction spreads over the cos² footprint, so
+      // the webbing sags across a span under his step, not a notch).
+      // No velocity clamps, no pins, no pops: the fabric presses him up
+      // exactly as long as it is compressed and closing on him; the moment
+      // it sinks away from his ballistic path his feet leave it with the
+      // speed it gave him. Pressing is a gravity well — extra weight on
+      // the spring — so the bed sinks, stores energy, and its recoil
+      // compresses the spring harder than gravity and throws him.
+      attached = false;
       const bodies = webbing ? (webbing.bodies as Matter.Body[]) : [];
-      const n = bodies.length;
-      if (n > 2) {
-        const disp = (i: number) =>
-          i <= 0 || i >= n - 1 ? 0 : bodies[i].position.y - lineHomeY;
-        for (let i = 1; i < n - 1; i++) {
-          const want = Math.max(-140, Math.min(140, BED_SPREAD * ((disp(i - 1) + disp(i + 1)) / 2)));
-          for (const c of segBed[i]) {
-            const pb = c.pointB as { x: number; y: number } & { __ty?: number };
-            const cur = pb.__ty === undefined ? 0 : pb.__ty;
-            const step = Math.max(-0.75, Math.min(0.75, want - cur));
-            pb.__ty = cur + step;
-            pb.y = lineHomeY + pb.__ty;
+      if (seg && surf !== null && bodies.length > 2) {
+        const pen = Math.min(26, Math.max(0, wp.y + FOOT_R - surf + 1));
+        // window must be DEEPER than any real overshoot (landing speed /
+        // foot-spring rate) — a tighter one let a pressed walker outrun
+        // contact and drop straight through the line
+        const near = wp.y + FOOT_R - surf < 40;
+        if (near) {
+          attached = pen > 0; // indicator only; contact force below is gated too
+          // zero force at zero penetration: the fabric can push, never
+          // suck — the moment his feet leave it he is purely ballistic
+          // spring carries exactly his weight at rest: equilibrium when
+          // 0.3*pen == gravityStep, i.e. a few px of sink
+          // cap must sit above the full press demand (1 + PRESS_ACCEL g),
+          // else a held press sinks him through the spring at 1g — the
+          // exact slow fall-through this replaced
+          const a =
+            pen > 0
+              ? Math.max(
+                  0,
+                  Math.min(gravityStep * 16, 0.3 * pen + 0.07 * (bedVy - vel.y)),
+                )
+              : 0;
+          const well = pressing && wp.y < pageHeight - 140 ? PRESS_ACCEL * gravityStep : 0;
+          Matter.Body.applyForce(slacker, slacker.position, {
+            x: 0,
+            y: (well - a) * slacker.mass * forceScale,
+          });
+          let sum = 0;
+          const ws = bodies.map((b) => {
+            const dx = b.position.x - wp.x;
+            const w =
+              Math.abs(dx) < loadHalfW
+                ? Math.cos((dx / loadHalfW) * (Math.PI / 2)) ** 2
+                : 0;
+            sum += w;
+            return w;
+          });
+          if (sum > 0) {
+            bodies.forEach((b, j) => {
+              if (ws[j] > 0) {
+                Matter.Body.applyForce(b, b.position, {
+                  x: 0,
+                  y: (a * slacker.mass * ws[j] * forceScale) / sum,
+                });
+              }
+            });
           }
         }
       }
-
-      // His load — standing weight plus the spacebar push (tapered so a
-      // held key can't bottom him out) — presses on a KERNEL of nearby
-      // segments, not one: hammering a single body excites the bed's
-      // high-frequency wobble (the visible jitter, worst mid-rebound).
-      dipNow = seg ? Math.max(0, seg.position.y - lineHomeY) : 0;
-      if (attached && seg && n > 2) {
-        const total =
-          BODY_WEIGHT +
-          (pressing && wp.y < pageHeight - 140
-            ? PRESS_FORCE * Math.max(0, 1 - dipNow / 160)
-            : 0);
-        bodies.forEach((b) => {
-          const w = Math.max(0, 1 - Math.abs(b.position.x - wp.x) / loadHalfW);
-          if (w > 0) {
-            Matter.Body.applyForce(b, b.position, { x: 0, y: total * w * b.mass });
-          }
-        });
-      }
-
-      if (!pressing && prevPressing && attached && dipNow > 8) {
-        // Push-off: feet leave the bed, dip energy becomes launch velocity.
-        const pop = Math.min(11, 2 + dipNow * 0.26);
-        attached = false;
-        Matter.Body.setVelocity(slacker, { x: vel.x, y: -pop });
-      }
-      prevPressing = pressing;
 
       // Walking drives horizontal velocity directly: the fabric grip needs
       // mu ~1.6, and no sane push force clears that static threshold —
@@ -355,24 +399,6 @@ export const Slackline = () => {
           const vx = Math.max(-MAX_WALK_SPEED, Math.min(MAX_WALK_SPEED, vel.x + dir * 0.18));
           Matter.Body.setVelocity(slacker, { x: vx, y: vel.y });
         }
-      }
-
-      if (attached && surf !== null) {
-        // Carried: feet track the fabric surface. Velocity steering — no
-        // constraint to stretch, and the pop sets attached=false BEFORE it
-        // launches, so the pin never fights a jump. (Collision alone was
-        // tried for carrying; a rebounding bed flings a collision rider.)
-        // PD steering to the surface: pure P gain limit-cycles at rest.
-        const follow = (surf - FOOT_R - wp.y) * 0.4 + vel.y * 0.55;
-        Matter.Body.setVelocity(slacker, {
-          x: vel.x,
-          y: Math.max(-12, Math.min(12, follow)),
-        });
-      } else if (!attached && seg && vel.y >= 0 && wp.y + FOOT_R >= surf! - 24 && wp.y < pageHeight - 130) {
-        // Landing: descending and the feet have reached the fabric — he is
-        // standing on it again (collision carries him; no velocity pin,
-        // which fought the solver and shredded walking).
-        attached = true;
       }
 
             // Level the fabric: the end-spring couple does most of the work; this
@@ -399,39 +425,45 @@ export const Slackline = () => {
       if (bodies.length < 2) return;
       const hw = segHalfW;
       const hh = 3.5;
-      const corner = (b: Matter.Body, lx: number, ly: number) => ({
-        x: b.position.x + lx * Math.cos(b.angle) - ly * Math.sin(b.angle),
-        y: b.position.y + lx * Math.sin(b.angle) + ly * Math.cos(b.angle),
-      });
-      // Top edge then bottom edge, stitched through joint midpoints: one
-      // filled path across ALL segments, so physics gaps can never show.
-      const top: { x: number; y: number }[] = [corner(bodies[0], -hw, -hh)];
-      const bot: { x: number; y: number }[] = [corner(bodies[0], -hw, hh)];
-      for (let i = 0; i < bodies.length; i++) {
-        const isLast = i === bodies.length - 1;
-        const tR = corner(bodies[i], hw, -hh);
-        const bR = corner(bodies[i], hw, hh);
-        if (isLast) {
-          top.push(tR);
-          bot.push(bR);
-        } else {
-          const nT = corner(bodies[i + 1], -hw, -hh);
-          const nB = corner(bodies[i + 1], -hw, hh);
-          top.push({ x: (tR.x + nT.x) / 2, y: (tR.y + nT.y) / 2 });
-          bot.push({ x: (bR.x + nB.x) / 2, y: (bR.y + nB.y) / 2 });
-        }
+      // The physics line has a small every-other-segment ripple (a
+      // discretization artifact of per-segment springs; stiffer couplings
+      // that remove it also stiffen the whole bed). The webbing is drawn
+      // as a smooth band through the segment centers anyway, so draw it
+      // through a lightly smoothed centerline: eyes see a rope, solver
+      // keeps its honest dynamics.
+      const n = bodies.length;
+      const px = bodies.map((b) => b.position.x);
+      const py = bodies.map((b, i) =>
+        i === 0 || i === n - 1
+          ? b.position.y
+          : (bodies[i - 1].position.y + b.position.y + bodies[i + 1].position.y) / 3
+      );
+      const top: { x: number; y: number }[] = [];
+      const bot: { x: number; y: number }[] = [];
+      for (let i = 0; i < n; i++) {
+        const x = px[i] + (i === 0 ? -hw : i === n - 1 ? hw : 0);
+        top.push({ x, y: py[i] - hh });
+        bot.push({ x, y: py[i] + hh });
       }
+      const trace = (pts: { x: number; y: number }[]) => {
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length - 1; i++) {
+          const mx = (pts[i].x + pts[i + 1].x) / 2;
+          const my = (pts[i].y + pts[i + 1].y) / 2;
+          ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+        }
+        ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+      };
       ctx.beginPath();
-      ctx.moveTo(top[0].x, top[0].y);
-      top.forEach((p) => ctx.lineTo(p.x, p.y));
-      for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i].x, bot[i].y);
+      trace(top);
+      ctx.lineTo(bot[bot.length - 1].x, bot[bot.length - 1].y);
+      trace(bot.reverse());
       ctx.closePath();
       ctx.fillStyle = WEBBING_COLOR;
       ctx.fill();
       // subtle under-edge so the ribbon reads as webbing, not a flat stripe
       ctx.beginPath();
-      ctx.moveTo(bot[0].x, bot[0].y);
-      bot.forEach((p) => ctx.lineTo(p.x, p.y));
+      trace(bot);
       ctx.strokeStyle = "rgba(0, 0, 0, 0.28)";
       ctx.lineWidth = 2;
       ctx.lineJoin = "round";
