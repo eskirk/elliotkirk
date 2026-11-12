@@ -63,6 +63,7 @@ export const Slackline = () => {
     let anchors: Matter.Body[] = [];
     let webbing: Matter.Composite | null = null;
     let bedConstraints: Matter.Constraint[] = [];
+    let segHalfW = 0; // ribbon geometry, refreshed by buildLine
     let slacker: Matter.Body;
 
     const anchorY = () => Math.round(pageHeight * ANCHOR_Y_FRAC);
@@ -102,7 +103,7 @@ export const Slackline = () => {
         segs.push(
           Matter.Bodies.rectangle(margin + i * spacing, y0, spacing * 1.15, 9, {
             collisionFilter: { group: webbingGroup },
-            render: { fillStyle: WEBBING_COLOR },
+            render: { visible: false }, // drawn as one continuous ribbon overlay
             chamfer: { radius: 3 },
             friction: 1,
             frictionStatic: 1.4,
@@ -112,6 +113,7 @@ export const Slackline = () => {
         );
       }
       Matter.Composite.add(webbing, segs);
+      segHalfW = (spacing * 1.15) / 2;
 
       // Trampoline-bed model (what a real trampoline is: fabric + springs to
       // a frame). Each interior segment hangs on TWO invisible springs, one
@@ -346,10 +348,55 @@ export const Slackline = () => {
       }
     });
 
-    // --- stick figure overlay (Matter renders the webbing + posts itself) ---
+    // --- webbing + slackliner overlay (Matter only renders the posts) ---
     const legPhase = { t: 0 };
+    const drawRibbon = (ctx: CanvasRenderingContext2D) => {
+      if (!webbing) return;
+      const bodies = webbing.bodies as Matter.Body[];
+      if (bodies.length < 2) return;
+      const hw = segHalfW;
+      const hh = 4.5;
+      const corner = (b: Matter.Body, lx: number, ly: number) => ({
+        x: b.position.x + lx * Math.cos(b.angle) - ly * Math.sin(b.angle),
+        y: b.position.y + lx * Math.sin(b.angle) + ly * Math.cos(b.angle),
+      });
+      // Top edge then bottom edge, stitched through joint midpoints: one
+      // filled path across ALL segments, so physics gaps can never show.
+      const top: { x: number; y: number }[] = [corner(bodies[0], -hw, -hh)];
+      const bot: { x: number; y: number }[] = [corner(bodies[0], -hw, hh)];
+      for (let i = 0; i < bodies.length; i++) {
+        const isLast = i === bodies.length - 1;
+        const tR = corner(bodies[i], hw, -hh);
+        const bR = corner(bodies[i], hw, hh);
+        if (isLast) {
+          top.push(tR);
+          bot.push(bR);
+        } else {
+          const nT = corner(bodies[i + 1], -hw, -hh);
+          const nB = corner(bodies[i + 1], -hw, hh);
+          top.push({ x: (tR.x + nT.x) / 2, y: (tR.y + nT.y) / 2 });
+          bot.push({ x: (bR.x + nB.x) / 2, y: (bR.y + nB.y) / 2 });
+        }
+      }
+      ctx.beginPath();
+      ctx.moveTo(top[0].x, top[0].y);
+      top.forEach((p) => ctx.lineTo(p.x, p.y));
+      for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i].x, bot[i].y);
+      ctx.closePath();
+      ctx.fillStyle = WEBBING_COLOR;
+      ctx.fill();
+      // subtle under-edge so the ribbon reads as webbing, not a flat stripe
+      ctx.beginPath();
+      ctx.moveTo(bot[0].x, bot[0].y);
+      bot.forEach((p) => ctx.lineTo(p.x, p.y));
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.28)";
+      ctx.lineWidth = 2;
+      ctx.lineJoin = "round";
+      ctx.stroke();
+    };
     Matter.Events.on(render, "afterRender", () => {
       const ctx = render.context;
+      drawRibbon(ctx);
       const fg =
         getComputedStyle(document.documentElement).getPropertyValue("--fg").trim() || "#212529";
       const { x, y } = slacker.position;
