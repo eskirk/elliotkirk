@@ -71,7 +71,6 @@ export const Slackline = () => {
     let anchors: Matter.Body[] = [];
     let webbing: Matter.Composite | null = null;
     let bedConstraints: Matter.Constraint[] = [];
-    let segHalfW = 0; // ribbon geometry, refreshed by buildLine
     let segBed: Matter.Constraint[][] = []; // bed springs by segment index
     let loadHalfW = 100; // kernel half-width in px, refreshed by buildLine
     let slacker: Matter.Body;
@@ -94,14 +93,16 @@ export const Slackline = () => {
       const spacing = span / (SEGMENTS - 1);
       const y0 = anchorY();
 
-      // Visual posts the line ties off to (the sketch's gray blocks).
+      // Tie-off posts. Fully off-screen (a 40-wide block centered at ±20
+      // past the edges) — Elliot wanted the webbing to run off the frame
+      // without gray stubs visible at the corners.
       anchors = [
-        Matter.Bodies.rectangle(25, y0, 40, Math.min(300, pageHeight - y0 + 30), {
+        Matter.Bodies.rectangle(-20, y0, 40, Math.min(300, pageHeight - y0 + 30), {
           isStatic: true,
           collisionFilter: { category: 0x0002 },
           render: { fillStyle: "#5a5a66" },
         }),
-        Matter.Bodies.rectangle(pageWidth - 25, y0, 40, Math.min(300, pageHeight - y0 + 30), {
+        Matter.Bodies.rectangle(pageWidth + 20, y0, 40, Math.min(300, pageHeight - y0 + 30), {
           isStatic: true,
           collisionFilter: { category: 0x0002 },
           render: { fillStyle: "#5a5a66" },
@@ -130,7 +131,6 @@ export const Slackline = () => {
         );
       }
       Matter.Composite.add(webbing, segs);
-      segHalfW = (spacing * 1.15) / 2;
 
       // Trampoline-bed model (what a real trampoline is: fabric + springs to
       // a frame). Each interior segment hangs on TWO invisible springs, one
@@ -484,7 +484,6 @@ export const Slackline = () => {
       if (!webbing) return;
       const bodies = webbing.bodies as Matter.Body[];
       if (bodies.length < 2) return;
-      const hw = segHalfW;
       const hh = 3.5;
       // (lastPx/lastPy publish the drawn centerline so the figure can stand ON it)
       // The physics line has a small every-other-segment ripple (a
@@ -503,7 +502,9 @@ export const Slackline = () => {
       const top: { x: number; y: number }[] = [];
       const bot: { x: number; y: number }[] = [];
       for (let i = 0; i < n; i++) {
-        const x = px[i] + (i === 0 ? -hw : i === n - 1 ? hw : 0);
+        // Endpoints run flush to the frame edges — the tie-off posts sit
+        // off-screen now, so the webbing must reach the edges itself.
+        const x = i === 0 ? 0 : i === n - 1 ? pageWidth : px[i];
         top.push({ x, y: py[i] - hh });
         bot.push({ x, y: py[i] + hh });
       }

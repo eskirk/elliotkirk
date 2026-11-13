@@ -235,7 +235,7 @@ export const App = () => {
           onClick={cycleView}
           aria-label="Shuffle background"
         >
-          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
             <path
               d="M17 3l4 4-4 4M17 13l4 4-4 4M21 7H17.5c-1.7 0-3.3.9-4.2 2.4l-2.6 4.2C9.8 19.1 8.2 20 6.5 20H3M3 7h3.5c1.7 0 3.3.9 4.2 2.4l.7 1.1M21 17h-3.5c-1.1 0-2.2-.5-3-1.3"
               fill="none"
@@ -245,7 +245,6 @@ export const App = () => {
               strokeLinejoin="round"
             />
           </svg>
-          <span>shuffle</span>
         </button>
       )}
       {pickerOpen && (
