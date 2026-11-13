@@ -107,6 +107,14 @@ html, body {
     font-size: 12px;
     opacity: 0.85;
   }
+
+  // On phone-width screens the centered tilt+hint pair would run under the
+  // right-edge shuffle card; the hint is the thing to lose, never a button.
+  @media (max-width: 520px) {
+    .touch-hint {
+      display: none;
+    }
+  }
 }
 
 .tilt-btn {
@@ -131,18 +139,20 @@ html, body {
   }
 }
 
-// Shuffle: bottom-right rounded card cycling the home backgrounds, styled
-// after Elliot's mockup — light surface, thin border, shuffle glyph + label.
+// Shuffle: rounded card cycling the home backgrounds, styled after Elliot's
+// mockup — light surface, thin border, shuffle glyph + label. Rides in the
+// floor band's row (its vertical center = the band's center, 60px tall) at
+// the right edge, on the same line as the centered tilt button.
 .shuffle-btn {
   position: fixed;
-  right: 14px;
-  bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  right: 12px;
+  bottom: 10px;
   z-index: 100;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  font-size: 16px;
+  gap: 7px;
+  padding: 7px 13px;
+  font-size: 15px;
   font-family: inherit;
   color: #111;
   background: #fff;
