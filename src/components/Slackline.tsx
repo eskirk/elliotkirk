@@ -24,7 +24,7 @@ const BED_DAMPING = 0.2; // light spring damping; frictionAir does the rest
 const MAX_WALK_SPEED = 2.6; // px/tick horizontal cruise
 // Press is extra gravity on the WALKER: it loads the foot spring, which
 // loads the fabric — the only path from him to the line.
-const PRESS_ACCEL = 12; // extra g's while space is held
+const PRESS_ACCEL = 10; // extra g's while space is held (the 12 felt like a trapdoor because of the fall-through window bug, fixed below)
 const LOAD_SPAN_SEGS = 1.6; // half-width of the contact-force footprint, in segment spacings
 const ANCHOR_Y_FRAC = 0.42; // line height above the top of the viewport
 const WEBBING_COLOR = "RebeccaPurple"; // solid webbing, one color end to end
@@ -372,21 +372,26 @@ export const Slackline = () => {
         // window must be DEEPER than any real overshoot (landing speed /
         // foot-spring rate) — a tighter one let a pressed walker outrun
         // contact and drop straight through the line
-        const near = wp.y + FOOT_R - surf < 40;
+        // must cover the full braking distance of the fastest realistic
+        // landing, not just a comfortable one — a shallow window dropped
+        // fast fallers mid-brake and they plummeted through the line
+        const near = wp.y + FOOT_R - surf < 72;
         if (near) {
           attached = pen > 0; // indicator only; contact force below is gated too
           // zero force at zero penetration: the fabric can push, never
           // suck — the moment his feet leave it he is purely ballistic
           // spring carries exactly his weight at rest: equilibrium when
           // 0.3*pen == gravityStep, i.e. a few px of sink
-          // cap must sit above the full press demand (1 + PRESS_ACCEL g),
-          // else a held press sinks him through the spring at 1g — the
-          // exact slow fall-through this replaced
+          // the cap must clear the press demand (1 + PRESS_ACCEL g) by
+          // ENOUGH to brake a press-landing: falling at 11g for a full
+          // bounce arc hits the fabric at ~16 px/tick, and net decel is
+          // (cap - 11g) — a 16g cap needed ~87px of braking and the fall
+          // outran the contact window. 28g stops it inside ~30px.
           const a =
             pen > 0
               ? Math.max(
                   0,
-                  Math.min(gravityStep * 16, 0.3 * pen + 0.07 * (bedVy - vel.y)),
+                  Math.min(gravityStep * 28, 0.3 * pen + 0.045 * (bedVy - vel.y)),
                 )
               : 0;
           const well = pressing && wp.y < pageHeight - 140 ? PRESS_ACCEL * gravityStep : 0;
@@ -475,8 +480,13 @@ export const Slackline = () => {
       }
       lastPx = px;
       lastPy = py;
-      const trace = (pts: { x: number; y: number }[]) => {
-        ctx.moveTo(pts[0].x, pts[0].y);
+      // moveTo only on the first pass: a moveTo mid-path would open a
+      // SECOND subpath, and fill() implicitly closes each subpath with a
+      // straight chord — that chord was the "ghost line": a taut straight
+      // line post-to-post while the sagging ribbon curved away from it.
+      const trace = (pts: { x: number; y: number }[], move: boolean) => {
+        if (move) ctx.moveTo(pts[0].x, pts[0].y);
+        else ctx.lineTo(pts[0].x, pts[0].y);
         for (let i = 1; i < pts.length - 1; i++) {
           const mx = (pts[i].x + pts[i + 1].x) / 2;
           const my = (pts[i].y + pts[i + 1].y) / 2;
@@ -485,15 +495,15 @@ export const Slackline = () => {
         ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
       };
       ctx.beginPath();
-      trace(top);
-      ctx.lineTo(bot[bot.length - 1].x, bot[bot.length - 1].y);
-      trace(bot.reverse());
+      trace(top, true);
+      const botR = bot.slice().reverse();
+      trace(botR, false);
       ctx.closePath();
       ctx.fillStyle = WEBBING_COLOR;
       ctx.fill();
       // subtle under-edge so the ribbon reads as webbing, not a flat stripe
       ctx.beginPath();
-      trace(bot);
+      trace(bot, true);
       ctx.strokeStyle = "rgba(0, 0, 0, 0.28)";
       ctx.lineWidth = 2;
       ctx.lineJoin = "round";
