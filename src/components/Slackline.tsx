@@ -75,7 +75,17 @@ export const Slackline = () => {
     let loadHalfW = 100; // kernel half-width in px, refreshed by buildLine
     let slacker: Matter.Body;
 
-    const anchorY = () => Math.round(pageHeight * ANCHOR_Y_FRAC);
+    // Portrait/tall viewports (phones) have the line floating far above the
+    // floor at the desktop fraction; slide it down toward the vertical
+    // middle as the aspect gets taller, so it stays a similar distance
+    // above the ground band and leaves walking room below.
+    const anchorY = () => {
+      const aspect = pageWidth / Math.max(1, pageHeight);
+      // 1.2 (landscape/desktop) -> 0.42 unchanged; down to ~0.5 on tall
+      // phones -> 0.53, clamped either side.
+      const frac = Math.min(0.53, Math.max(0.42, ANCHOR_Y_FRAC + (1.2 - aspect) * 0.16));
+      return Math.round(pageHeight * frac);
+    };
 
     const clearLine = () => {
       if (webbing) Matter.World.remove(world, webbing, true);
