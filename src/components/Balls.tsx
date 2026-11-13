@@ -1,23 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { faro } from '@grafana/faro-web-sdk';
 import * as Matter from 'matter-js';
 import _ from 'lodash';
-
-// Set once, on the first gated visit, so the tilt hint pill shows exactly
-// once ever (iOS site grants persist, so later loads enable silently).
-const TILT_HINT_KEY = 'ek-tilt-hint-shown';
+import { tiltState } from '../tilt';
 
 export const Balls = () => {
   const scene = useRef<HTMLDivElement>(null);
   const engine = useRef(Matter.Engine.create());
-  // Tilt-permission UI state, shown on iOS only:
-  //   'hidden' — nothing to show (desktop, Android, motion already running,
-  //              or already-seen loads where permission resolves silently)
-  //   'enable' — one-time discoverability hint (retired via localStorage)
-  //   'denied' — iOS refused (earlier dismissal or Safari setting)
-  //   'nodata' — granted but the sensor never fired (per-site Safari toggle)
-  const [tilt, setTilt] = useState<'hidden' | 'enable' | 'denied' | 'nodata'>('hidden');
-  const tiltRequestRef = useRef<(() => void) | null>(null);
+  // Tilt is opt-in per visit via the button in the floor band (see
+  // src/tilt.ts); this component only consumes tiltState each tick.
 
   useEffect(() => {
     let runner = Matter.Runner.create();
@@ -245,123 +236,28 @@ export const Balls = () => {
     Matter.Render.run(render);
     Matter.Runner.run(runner, engine.current);
 
-    // --- Tilt controls (mobile) ---
-    // On touch devices the balls react to the phone's accelerometer: tilting the
-    // phone steers the gravity vector. Held upright (beta≈90, gamma≈0) it's
-    // normal downward gravity; tipping tips the world like a tray. iOS 13+ gates
-    // DeviceOrientationEvent behind a one-tap permission request; desktop has no
-    // accelerometer, so the whole block is a no-op there.
-    const BASE_G = 1;
-    const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-    const applyTilt = (beta: number, gamma: number) => {
-      const gx = BASE_G * clamp(gamma / 90, -1, 1);
-      const gy = BASE_G * clamp(beta / 90, -1, 1);
-      world.gravity.x = gx;
-      world.gravity.y = gy;
-      engine.current.gravity.x = gx;
-      engine.current.gravity.y = gy;
-    };
-
-    // The deviceorientation listener — attached only when tilt controls are on.
-    let sawOrientation = false;
-    const onOrientation = (e: DeviceOrientationEvent) => {
-      sawOrientation = true;
-      if (e.beta == null || e.gamma == null) return;
-      applyTilt(e.beta, e.gamma);
-    };
-
-    const isTouch =
-      'ontouchstart' in window ||
-      (navigator.maxTouchPoints ?? 0) > 0 ||
-      (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
-    const DOE: any = (window as any).DeviceOrientationEvent;
-    // iOS 13+ gates the sensor behind a permission request fired from a user
-    // gesture; Android (and iOS ≤12) stream orientation events freely.
-    const gated = isTouch && !!DOE && typeof DOE.requestPermission === 'function';
-
-    let motionActive = false;
-    let nodataTimer = 0;
-    const enableMotion = (watch: boolean) => {
-      if (motionActive) return;
-      motionActive = true;
-      window.addEventListener('deviceorientation', onOrientation);
-      if (watch) {
-        // 'granted' but no events for a while means the per-site "Motion &
-        // Orientation" toggle is off in Safari — surface that instead of the
-        // balls just sitting there with no explanation.
-        nodataTimer = window.setTimeout(() => {
-          if (!sawOrientation) setTilt('nodata');
-        }, 2500);
+    // --- Tilt controls (mobile, opt-in per visit via the band button) ---
+    // tiltState is fed by the shared listener in src/tilt.ts once the user
+    // taps the tilt button; balls steer by it tilting the gravity vector.
+    // Held upright (beta≈90, gamma≈0) it's normal downward gravity.
+    let tiltWasOn = false;
+    const onBeforeUpdate = () => {
+      if (tiltState.enabled) {
+        world.gravity.x = tiltState.gx;
+        world.gravity.y = tiltState.gy;
+        engine.current.gravity.x = tiltState.gx;
+        engine.current.gravity.y = tiltState.gy;
+        tiltWasOn = true;
+      } else if (tiltWasOn) {
+        // turned off mid-visit: restore plain downward gravity exactly once
+        tiltWasOn = false;
+        world.gravity.x = 0;
+        world.gravity.y = world.gravity.y === 0 ? 0 : 1;
+        engine.current.gravity.x = 0;
+        engine.current.gravity.y = world.gravity.y;
       }
     };
-
-    // The old code fired the permission prompt on the first pointerdown with
-    // { once: true } — a dismissed or failed prompt was consumed forever with
-    // no way to retry, which is why tilt "did nothing" on iPhone. Now every
-    // gesture retries until the request settles, and the pill shows the state.
-    // requestPermission() must be called synchronously inside the gesture
-    // handler; a synchronous throw just means that event type didn't count —
-    // the next gesture (iOS reliably accepts click/touchend/keydown) tries again.
-    const GESTURES = ['pointerdown', 'touchend', 'click', 'keydown'] as const;
-    let settled = false;
-    let inFlight = false;
-    function onGesture() {
-      request();
-    }
-    const detachGestures = () => GESTURES.forEach((g) => window.removeEventListener(g, onGesture));
-    const request = () => {
-      if (settled || inFlight) return;
-      let p: Promise<string>;
-      try {
-        p = DOE.requestPermission();
-      } catch {
-        return; // not a qualifying gesture — retry on the next one
-      }
-      inFlight = true;
-      Promise.resolve(p).then(
-        (res) => {
-          inFlight = false;
-          settled = true;
-          detachGestures();
-          if (res === 'granted') {
-            enableMotion(true);
-            setTilt('hidden');
-          } else {
-            // iOS won't prompt again for this site — guide the user to the
-            // setting instead of failing silently.
-            setTilt('denied');
-          }
-        },
-        () => {
-          inFlight = false; // rejected outside activation — next gesture retries
-        }
-      );
-    };
-
-    tiltRequestRef.current = gated ? request : null;
-
-    // iOS grants motion access per *site*: once allowed, a later
-    // requestPermission() (still called from a gesture) resolves instantly
-    // with no dialog. So the request fires silently on the first tap — no
-    // pill needed as a gate. The 'enable' pill is now a ONE-TIME hint (so
-    // the tilt feature stays discoverable), retired forever via localStorage
-    // after its first appearance; the warn pills still surface real
-    // failures (denied, or granted-but-no-sensor-data).
-    if (isTouch) {
-      if (gated) {
-        let hintSeen = true;
-        try {
-          hintSeen = window.localStorage.getItem(TILT_HINT_KEY) === "1";
-          if (!hintSeen) window.localStorage.setItem(TILT_HINT_KEY, "1");
-        } catch {
-          /* storage blocked (e.g. strict privacy mode): never show the hint */
-        }
-        if (!hintSeen) setTilt("enable");
-        GESTURES.forEach((g) => window.addEventListener(g, onGesture));
-      } else {
-        enableMotion(false); // Android / others: no permission gate
-      }
-    }
+    Matter.Events.on(engine.current, 'beforeUpdate', onBeforeUpdate);
 
     // --- Ball rain (all devices) ---
     // A ~1 ball/second drizzle — size, colour, drop position and initial
@@ -416,34 +312,11 @@ export const Balls = () => {
       window.removeEventListener('resize', onResize);
       if (vv) vv.removeEventListener('resize', onResize);
       if (settleTimer) window.clearTimeout(settleTimer);
-      window.removeEventListener('deviceorientation', onOrientation);
-      GESTURES.forEach((g) => window.removeEventListener(g, onGesture));
-      if (nodataTimer) window.clearTimeout(nodataTimer);
       if (rainTimer) window.clearTimeout(rainTimer);
-      tiltRequestRef.current = null;
     };
     // Deps: the effect builds the whole world once — never re-run it on
-    // re-renders (the setTilt() calls below re-render this component).
+    // re-renders.
   }, []);
 
-  return (
-    <>
-      <div ref={scene} style={{ width: '100%', height: '100%' }} />
-      {tilt !== 'hidden' && (
-        <button
-          type="button"
-          className={tilt === 'enable' ? 'tilt-pill' : 'tilt-pill tilt-pill-warn'}
-          onClick={() => tiltRequestRef.current?.()}
-        >
-          {tilt === 'enable' && <>📱 tap to enable tilt controls</>}
-          {tilt === 'denied' && (
-            <>⚠️ motion blocked — Safari ▸ ⋯ ▸ Website Settings ▸ allow Motion &amp; Orientation</>
-          )}
-          {tilt === 'nodata' && (
-            <>⚠️ no motion data — Safari ▸ ⋯ ▸ Website Settings ▸ allow Motion &amp; Orientation</>
-          )}
-        </button>
-      )}
-    </>
-  );
+  return <div ref={scene} style={{ width: '100%', height: '100%' }} />;
 };

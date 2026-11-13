@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import * as Matter from "matter-js";
+import { tiltState } from "../tilt";
 
 // Slackline view (builds on the first sketch: anchored side posts, a chained
 // webbing composite, category-filtered collisions, spacebar press force).
@@ -303,6 +304,20 @@ export const Slackline = () => {
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
 
+    // Touch: press-and-hold anywhere on the canvas = spacebar. Keyboard
+    // stays the desktop path; both feed the same `pressing` flag.
+    let touchPress = false;
+    const onTouchStart = (e: TouchEvent) => {
+      touchPress = true;
+      e.preventDefault();
+    };
+    const onTouchEnd = () => {
+      touchPress = false;
+    };
+    render.canvas.addEventListener("touchstart", onTouchStart, { passive: false });
+    render.canvas.addEventListener("touchend", onTouchEnd);
+    render.canvas.addEventListener("touchcancel", onTouchEnd);
+
     // --- press / launch state machine ---
     // The walker is either ATTACHED (carried on the fabric surface) or
     // FLYING. Pressing space drives his legs into the webbing at the foot
@@ -339,7 +354,7 @@ export const Slackline = () => {
     Matter.Events.on(engine.current, "beforeUpdate", () => {
       const wp = slacker.position;
       const vel = slacker.velocity;
-      pressing = keysDown.has("Space");
+      pressing = keysDown.has("Space") || touchPress;
       const seg = nearestSegment(wp.x);
       const surf = seg ? seg.position.y - 3.5 : null; // fabric top under him
 
@@ -425,12 +440,26 @@ export const Slackline = () => {
       // Walking drives horizontal velocity directly: the fabric grip needs
       // mu ~1.6, and no sane push force clears that static threshold —
       // horizontal control authority, vertical physics untouched.
+      let dir = 0;
       if (keysDown.has("ArrowLeft") || keysDown.has("ArrowRight")) {
-        const dir = keysDown.has("ArrowLeft") ? -1 : 1;
+        dir = keysDown.has("ArrowLeft") ? -1 : 1;
+      } else if (tiltState.enabled) {
+        // Tilt-walk: device roll steers, with a deadzone so the walker
+        // stands still when the phone lies roughly flat-ish.
+        const roll = tiltState.gx;
+        const DEAD = 0.12;
+        if (Math.abs(roll) > DEAD) dir = roll > 0 ? 1 : -1;
+      }
+      if (dir !== 0) {
         if (dir * vel.x < MAX_WALK_SPEED) {
           const vx = Math.max(-MAX_WALK_SPEED, Math.min(MAX_WALK_SPEED, vel.x + dir * 0.18));
           Matter.Body.setVelocity(slacker, { x: vx, y: vel.y });
         }
+      } else if (tiltState.enabled && Math.abs(vel.x) > 0.05) {
+        // Level phone = feet stop, not friction-coast: tilt is an analog
+        // input, and gliding 60px past the deadzone feels broken. (Keys
+        // keep the old lift-and-glide feel.)
+        Matter.Body.setVelocity(slacker, { x: vel.x * 0.85, y: vel.y });
       }
 
             // Level the fabric: the end-spring couple does most of the work; this
@@ -602,6 +631,9 @@ export const Slackline = () => {
       }
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      render.canvas.removeEventListener("touchstart", onTouchStart);
+      render.canvas.removeEventListener("touchend", onTouchEnd);
+      render.canvas.removeEventListener("touchcancel", onTouchEnd);
       window.removeEventListener("resize", onResize);
       if (vv) vv.removeEventListener("resize", onResize);
       if (settleTimer) window.clearTimeout(settleTimer);

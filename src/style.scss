@@ -95,39 +95,71 @@ html, body {
     border-radius: 5px;
   }
 
-  // Desktop-only: hide the keyboard legend on touch devices (phones/tablets).
-  @media (pointer: coarse) {
-    display: none;
+}
+
+// Mobile band: hosts the tilt opt-in button (centered) and a one-line touch
+// legend. The band itself stays click-through; the button does not.
+.shortcuts--touch {
+  pointer-events: none;
+  gap: 0 14px;
+
+  .touch-hint {
+    font-size: 12px;
+    opacity: 0.85;
   }
 }
 
-// iOS "enable tilt" pill (rendered only on touch devices that gate the motion
-// sensor). Dark frosted surface so it reads on light and dark pages alike; the
-// shortcuts legend is hidden on touch devices, so the bottom centre is free.
-.tilt-pill {
-  position: fixed;
-  bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100;
-  max-width: min(92vw, 420px);
-  padding: 10px 16px;
+.tilt-btn {
+  pointer-events: auto;
+  padding: 7px 14px;
   font-size: 13px;
-  line-height: 1.35;
-  text-align: center;
   color: #fff;
-  background: rgba(16, 16, 22, 0.78);
-  -webkit-backdrop-filter: blur(10px) saturate(1.2);
-  backdrop-filter: blur(10px) saturate(1.2);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.32);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  white-space: nowrap;
 
-  &.tilt-pill-warn {
-    border-color: rgba(255, 143, 107, 0.65);
-    border-radius: 16px;
+  &.on {
+    background: rgba(189, 151, 221, 0.85); // accent purple = engaged
+    border-color: rgba(217, 179, 255, 0.9);
+    color: #fff;
+  }
+
+  &.warn {
+    background: rgba(220, 95, 65, 0.85);
+    border-color: rgba(255, 143, 107, 0.9);
+  }
+}
+
+// Shuffle: bottom-right rounded card cycling the home backgrounds, styled
+// after Elliot's mockup — light surface, thin border, shuffle glyph + label.
+.shuffle-btn {
+  position: fixed;
+  right: 14px;
+  bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 16px;
+  font-family: inherit;
+  color: #111;
+  background: #fff;
+  border: 1px solid #bbb;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+
+  &:active {
+    transform: scale(0.96);
+  }
+
+  // iOS smart-dark-mode: invert the card so it stays a readable surface
+  @media (prefers-color-scheme: dark) {
+    color: #f5f5f5;
+    background: #1c1c1e;
+    border-color: #555;
   }
 }
 

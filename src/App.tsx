@@ -1,4 +1,12 @@
 import React, { useEffect, useState } from "react";
+import {
+  disableTilt,
+  getTiltUi,
+  isTouchDevice,
+  requestTilt,
+  subscribeTiltUi,
+  type TiltUiState,
+} from "./tilt";
 import { Balls } from "./components/Balls";
 import { Projects } from "./components/Projects";
 import { Slackline } from "./components/Slackline";
@@ -61,6 +69,19 @@ export const App = () => {
   const onProjects = route.startsWith("#/projects");
   const [view, setView] = useState<HomeView>(loadView);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [tiltUi, setTiltUi] = useState<TiltUiState>(getTiltUi);
+  const touch = isTouchDevice();
+
+  useEffect(() => subscribeTiltUi(setTiltUi), []);
+
+  const cycleView = () => selectView(view === "balls" ? "slackline" : "balls");
+
+  const onTiltButton = () => {
+    // one tap toggles; a non-qualifying gesture keeps the button so a
+    // second tap retries the permission prompt.
+    if (getTiltUi() === "on") disableTilt();
+    else requestTilt(() => undefined);
+  };
 
   const selectView = (next: HomeView) => {
     setView(next);
@@ -166,7 +187,7 @@ export const App = () => {
       {/* Home scenes swap by the persisted view choice; projects is a clean
           white page with no physics (components unmount and tear down). */}
       {!onProjects && (view === "balls" ? <Balls /> : <Slackline />)}
-      {!onProjects && view === "balls" && (
+      {!onProjects && !touch && view === "balls" && (
         <div className="shortcuts">
           <span><kbd>a</kbd> add a ball</span>
           <span><kbd>c</kbd> clear</span>
@@ -176,13 +197,56 @@ export const App = () => {
           <span><kbd>esc</kbd> view</span>
         </div>
       )}
-      {!onProjects && view === "slackline" && (
+      {!onProjects && !touch && view === "slackline" && (
         <div className="shortcuts">
           <span><kbd>←</kbd><kbd>→</kbd> walk</span>
           <span><kbd>space</kbd> bounce</span>
           <span><kbd>r</kbd> respawn</span>
           <span><kbd>esc</kbd> view</span>
         </div>
+      )}
+      {/* Mobile: the band hosts the tilt opt-in button, centered. Tilt is
+          never remembered — every visit starts off and this is the only
+          way in, which is the point. */}
+      {!onProjects && touch && (
+        <div className="shortcuts shortcuts--touch">
+          <button
+            type="button"
+            className={`tilt-btn${tiltUi === "on" ? " on" : ""}${
+              tiltUi === "denied" || tiltUi === "nodata" ? " warn" : ""
+            }`}
+            onClick={onTiltButton}
+          >
+            {tiltUi === "on" && <>🎐 tilt on</>}
+            {tiltUi === "off" && <>🎐 enable tilt</>}
+            {tiltUi === "denied" && <>⚠️ allow motion in Safari settings</>}
+            {tiltUi === "nodata" && <>⚠️ no motion data — allow it in Safari settings</>}
+          </button>
+          <span className="touch-hint">
+            {view === "balls" ? "tilt to steer · tap to add" : "tilt to walk · hold to bounce"}
+          </span>
+        </div>
+      )}
+      {/* Shuffle: mobile's stand-in for Esc — cycles the home backgrounds. */}
+      {!onProjects && touch && (
+        <button
+          type="button"
+          className="shuffle-btn"
+          onClick={cycleView}
+          aria-label="Shuffle background"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+            <path
+              d="M17 3l4 4-4 4M17 13l4 4-4 4M21 7H17.5c-1.7 0-3.3.9-4.2 2.4l-2.6 4.2C9.8 19.1 8.2 20 6.5 20H3M3 7h3.5c1.7 0 3.3.9 4.2 2.4l.7 1.1M21 17h-3.5c-1.1 0-2.2-.5-3-1.3"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          <span>Shuffle</span>
+        </button>
       )}
       {pickerOpen && (
         <div className="picker-backdrop" onClick={() => setPickerOpen(false)}>
