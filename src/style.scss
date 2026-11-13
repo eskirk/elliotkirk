@@ -101,19 +101,16 @@ html, body {
 // legend. The band itself stays click-through; the button does not.
 .shortcuts--touch {
   pointer-events: none;
-  gap: 0 14px;
+  // Stacked so the hint never competes for horizontal room: button on the
+  // band's upper line, one-line hint under it (520px-and-narrow phones were
+  // losing the hint entirely when it shared the row).
+  flex-direction: column;
+  gap: 3px;
+  justify-content: center;
 
   .touch-hint {
     font-size: 12px;
     opacity: 0.85;
-  }
-
-  // On phone-width screens the centered tilt+hint pair would run under the
-  // right-edge shuffle card; the hint is the thing to lose, never a button.
-  @media (max-width: 520px) {
-    .touch-hint {
-      display: none;
-    }
   }
 }
 
