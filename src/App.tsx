@@ -245,7 +245,7 @@ export const App = () => {
               strokeLinejoin="round"
             />
           </svg>
-          <span>Shuffle</span>
+          <span>shuffle</span>
         </button>
       )}
       {pickerOpen && (
